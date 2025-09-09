@@ -1,0 +1,126 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Sleeper Weekly Summary → JSON (Object-Oriented Version)
+# - Inputs: league_id (from ENV or args), week (or "auto"), optional --out path
+# - Output: JSON to STDOUT (and optionally to a file)
+#
+# Refactored into clean, maintainable classes with dotenv support.
+#
+# Examples:
+#   # Using environment variable
+#   SLEEPER_LEAGUE_ID=123456789012345678 bin/weekly_summary auto
+#
+#   # Using command line argument (overrides ENV)
+#   bin/weekly_summary 123456789012345678 1 --out week1_summary.json
+#   bin/weekly_summary 123456789012345678 auto
+#
+
+require 'json'
+require_relative '../lib/weekly_summary_generator'
+
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
+def parse_arguments!
+  # Show help if no args and no league ID in environment
+  if ARGV.empty? && ENV['SLEEPER_LEAGUE_ID'].nil?
+    warn "Usage: #{File.basename($PROGRAM_NAME)} [LEAGUE_ID] [WEEK|auto] [OPTIONS]"
+    warn ''
+    warn 'Arguments:'
+    warn '  LEAGUE_ID    Sleeper league ID (optional if SLEEPER_LEAGUE_ID env var is set)'
+    warn "  WEEK|auto    NFL week number, or 'auto' for current week (optional, defaults to 'auto')"
+    warn ''
+    warn 'Options:'
+    warn '  --out PATH   Output JSON to file at PATH'
+    warn '  --verbose    Enable verbose output'
+    warn ''
+    warn 'Environment Variables:'
+    warn '  SLEEPER_LEAGUE_ID      Default league ID (can be overridden by command line)'
+    warn "  SLEEPER_DEFAULT_WEEK   Default week to use if none specified (defaults to 'auto')"
+    warn ''
+    warn 'Examples:'
+    warn '  # Using environment variable only'
+    warn "  SLEEPER_LEAGUE_ID=123456789 #{File.basename($PROGRAM_NAME)}"
+    warn '  '
+    warn '  # With specific week'
+    warn "  #{File.basename($PROGRAM_NAME)} 123456789 1"
+    exit 2
+  end
+
+  # Determine if first arg is league_id or week
+  league_id = nil
+  week_arg = nil
+
+  if ARGV.empty?
+    # No arguments provided, use environment variables
+    league_id = ENV.fetch('SLEEPER_LEAGUE_ID', nil)
+    week_arg = nil # Will be set from ENV or default to "auto"
+  elsif ARGV[0] =~ /^\d{10,}$/
+    # First arg looks like a league ID (long number), use it
+    league_id = ARGV[0]
+    week_arg = ARGV[1]
+  else
+    # First arg doesn't look like league ID, use env var and first arg is week
+    league_id = ENV.fetch('SLEEPER_LEAGUE_ID', nil)
+    week_arg = ARGV[0]
+  end
+
+  unless league_id
+    warn '❌ Error: No league ID provided'
+    warn 'Set SLEEPER_LEAGUE_ID environment variable or provide as first argument'
+    exit 1
+  end
+
+  # Use environment default or auto if no week specified
+  week_arg = ENV['SLEEPER_DEFAULT_WEEK'] || 'auto' if week_arg.nil? || week_arg.strip.empty?
+
+  # Parse optional arguments
+  out_path = nil
+  verbose = false
+
+  ARGV.each_with_index do |arg, i|
+    case arg
+    when '--out'
+      out_path = ARGV[i + 1]
+    when '--verbose', '-v'
+      verbose = true
+    end
+  end
+
+  $VERBOSE = verbose
+
+  [league_id, week_arg, out_path]
+end
+
+def main
+  league_id, week_arg, out_path = parse_arguments!
+
+  begin
+    generator = WeeklySummaryGenerator.new(league_id)
+    week = week_arg == 'auto' ? nil : week_arg.to_i
+    summary = generator.generate_summary(week)
+
+    json_output = JSON.pretty_generate(summary)
+    puts json_output
+
+    if out_path
+      File.write(out_path, json_output)
+      warn "✓ Wrote summary to #{out_path}"
+    end
+  rescue SleeperAPI::APIError => e
+    warn "❌ API Error: #{e.message}"
+    exit 1
+  rescue StandardError => e
+    warn "❌ Unexpected error: #{e.message}"
+    warn e.backtrace.join("\n") if $VERBOSE
+    exit 1
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME

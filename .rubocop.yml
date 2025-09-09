@@ -1,0 +1,77 @@
+# .rubocop.yml
+
+# Use RuboCop RSpec extension
+plugins:
+  - rubocop-rspec
+
+# Use the latest version of RuboCop's built-in defaults
+inherit_mode:
+  merge:
+    - Exclude
+
+AllCops:
+  NewCops: enable   # Automatically enable cops introduced in new versions
+  TargetRubyVersion: 3.3
+  SuggestExtensions: false  # Disable extension suggestions
+  Exclude:
+    - '.sleeper_cache/**/*'
+    - 'tmp/**/*'
+    - 'vendor/**/*'
+
+# Layout and Style preferences
+Layout/LineLength:
+  Max: 100
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Style/CommentAnnotation:
+  Enabled: false
+
+Style/Documentation:
+  # Don't require documentation for every class in scripts and utilities
+  Exclude:
+    - 'bin/**/*'
+    - 'spec/**/*'
+
+# Metrics - be more lenient for complex domain logic
+Metrics/ClassLength:
+  Max: 150  # Allow longer classes for complex generators
+
+Metrics/MethodLength:
+  Max: 25   # Allow longer methods for complex data processing logic
+  Exclude:
+    - 'bin/**/*'  # Scripts often have longer main methods
+
+Metrics/AbcSize:
+  Max: 25   # More lenient for complex data processing
+  Exclude:
+    - 'bin/**/*'  # Scripts often have complex argument parsing
+
+Metrics/CyclomaticComplexity:
+  Max: 12   # Allow moderate complexity for data processing
+
+Metrics/PerceivedComplexity:
+  Max: 15   # Allow moderate perceived complexity
+
+Metrics/BlockLength:
+  Max: 25
+  Exclude:
+    - 'spec/**/*'  # Allow longer test blocks
+    - 'bin/**/*'   # Allow longer script blocks
+
+# RSpec specific rules
+RSpec/ExampleLength:
+  Max: 20
+
+RSpec/NestedGroups:
+  Max: 5
+
+RSpec/MultipleExpectations:
+  Max: 3  # Allow multiple expectations in tests
+
+RSpec/MessageSpies:
+  Enabled: false  # Allow both expect().to receive and have_received
+
+RSpec/VerifiedDoubles:
+  Enabled: false  # Allow normal doubles for simplicity

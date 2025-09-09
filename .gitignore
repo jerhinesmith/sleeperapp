@@ -1,0 +1,19 @@
+# Dependencies
+.bundle/
+vendor/ruby
+
+# Cache and data files
+.sleeper_cache/
+
+# Environment variables
+.env
+.env.local
+
+# RSpec
+.rspec_status
+
+# Coverage reports
+/coverage/
+
+# Logs
+*.log

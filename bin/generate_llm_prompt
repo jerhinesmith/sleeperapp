@@ -1,0 +1,257 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# LLM Prompt Generator for Sleeper Weekly Summary
+# - Takes JSON output from weekly_summary script
+# - Generates structured prompt for fun family-banter weekly summary
+# - Supports dotenv for configuration
+#
+# Usage:
+#   bin/generate_llm_prompt [--input path] [--output path]
+#   bin/weekly_summary auto | bin/generate_llm_prompt
+#
+
+require 'json'
+require 'time'
+
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
+class LLMPromptGenerator
+  def initialize
+    @json_data = nil
+  end
+
+  def generate_prompt(json_input)
+    @json_data = parse_json_input(json_input)
+
+    prompt_sections = [
+      build_header,
+      build_context_section,
+      build_matchup_instructions,
+      build_transaction_instructions,
+      build_special_sections_instructions,
+      build_tone_and_format_instructions,
+      build_data_section
+    ]
+
+    prompt_sections.join("\n\n")
+  end
+
+  private
+
+  def parse_json_input(input)
+    case input
+    when String
+      JSON.parse(input)
+    when Hash
+      input
+    else
+      raise "Invalid input type: #{input.class}"
+    end
+  rescue JSON::ParserError => e
+    raise "Invalid JSON input: #{e.message}"
+  end
+
+  def build_header
+    <<~HEADER
+      # 🏈 Weekly Fantasy Football Summary Generator
+
+      You are tasked with creating a fun, family-friendly fantasy football weekly summary with lots of playful banter and personality.
+    HEADER
+  end
+
+  def build_context_section
+    league_name = @json_data.dig('league_info', 'name') || 'Fantasy League'
+    week = @json_data['week']
+
+    <<~CONTEXT
+      ## League Context
+
+      **League:** #{league_name}
+      **Week:** #{week}
+      **Generated:** #{@json_data['generated_at']}
+
+      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.
+    CONTEXT
+  end
+
+  def build_matchup_instructions
+    <<~MATCHUPS
+      ## 📊 Matchup Analysis Instructions
+
+      For each matchup, provide:
+
+      1. **Matchup Result Summary** - Winner, final score, margin of victory
+      2. **Key Performances** - Highlight standout players (both good and bad)
+      3. **Transaction Impact Analysis** - Did any waiver wire pickups or recent adds help this week?
+      4. **Bench Analysis** - Point out any bench players who would have made a difference if started
+      5. **Playful Commentary** - Add some family-friendly banter about the teams/owners
+
+      Focus on storytelling and making each matchup feel like a mini-drama with heroes, villains, and plot twists.
+    MATCHUPS
+  end
+
+  def build_transaction_instructions
+    <<~TRANSACTIONS
+      ## 💼 Weekly Transaction Summary Instructions
+
+      Create a "Waiver Wire Report" section that covers:
+
+      1. **Most Active Managers** - Who was busy on the waiver wire?
+      2. **Smart Pickups** - Which adds paid off immediately?
+      3. **Questionable Drops** - Anyone drop someone who scored well?
+      4. **Waiver Wire Winners/Losers** - Who made the best/worst moves?
+
+      Make this feel like insider trading analysis but for fantasy football.
+    TRANSACTIONS
+  end
+
+  def build_special_sections_instructions
+    danielle_teams = find_danielle_teams
+    danielle_info = if danielle_teams.empty?
+                      "Look for teams named 'Danielle' or similar, or use the last place team(s)"
+                    else
+                      "Focus on: #{danielle_teams.map { |t| t[:team_name] }.join(', ')}"
+                    end
+
+    <<~SPECIAL
+      ## 🎵 Special Sections Instructions
+
+      ### Madison Beer Quote of the Week
+      - Include a made-up but plausible Madison Beer quote that somehow relates to this week's fantasy results
+      - Make it sound like something she might actually say on social media
+      - Keep it PG and fun
+
+      ### "Danielle Last Place Watch"
+      - #{danielle_info}
+      - Provide a humorous update on how Danielle's team is doing
+      - If Danielle isn't actually in last place, playfully roast her anyway
+      - Include record, recent performance, and chances of avoiding the sacko
+      - Make it sound like a sports ticker update but with family sass
+    SPECIAL
+  end
+
+  def build_tone_and_format_instructions
+    <<~TONE
+      ## 🎯 Tone & Format Guidelines
+
+      **Writing Style:**
+      - Family-friendly banter and playful roasting
+      - Use emojis liberally but tastefully
+      - Include fantasy football terminology but explain it if needed
+      - Make everyone feel included in the fun
+      - Balance congratulations with gentle ribbing
+
+      **Structure:**
+      1. Week Overview (2-3 sentences)
+      2. Matchup Breakdowns (one section per matchup)
+      3. Waiver Wire Report
+      4. Madison Beer Quote of the Week
+      5. Danielle Last Place Watch
+      6. Looking Ahead (brief teaser for next week)
+
+      **Length:** Aim for 500-800 words total - detailed enough to be engaging but not overwhelming.
+    TONE
+  end
+
+  def build_data_section
+    <<~DATA
+      ## 📋 Week #{@json_data['week']} Data
+
+      ```json
+      #{JSON.pretty_generate(@json_data)}
+      ```
+
+      ---
+
+      **Now generate the fun weekly summary using this data and following all the instructions above!**
+    DATA
+  end
+
+  def find_danielle_teams
+    return [] unless @json_data['standings']
+
+    @json_data['standings'].select do |team|
+      name_fields = [team['owner'], team['team_name']].map(&:to_s).map(&:downcase)
+      name_fields.any? { |name| name.include?('danielle') }
+    end
+  end
+end
+
+# Command line interface
+def parse_arguments!
+  input_file = nil
+  output_file = nil
+
+  ARGV.each_with_index do |arg, i|
+    case arg
+    when '--input', '-i'
+      input_file = ARGV[i + 1]
+    when '--output', '-o'
+      output_file = ARGV[i + 1]
+    when '--help', '-h'
+      puts <<~HELP
+        Usage: #{File.basename($PROGRAM_NAME)} [options]
+
+        Options:
+          --input PATH    Read JSON from file instead of STDIN
+          --output PATH   Write prompt to file instead of STDOUT
+          --help          Show this help message
+
+        Examples:
+          # From piped input
+          bin/weekly_summary auto | #{File.basename($PROGRAM_NAME)}
+
+          # From file
+          #{File.basename($PROGRAM_NAME)} --input week1_summary.json --output week1_prompt.txt
+
+          # Using environment variables
+          SLEEPER_LEAGUE_ID=123456789 bin/weekly_summary auto | #{File.basename($PROGRAM_NAME)}
+      HELP
+      exit 0
+    end
+  end
+
+  [input_file, output_file]
+end
+
+def main
+  input_file, output_file = parse_arguments!
+
+  begin
+    # Read JSON data
+    json_input = if input_file
+                   File.read(input_file)
+                 else
+                   $stdin.read
+                 end
+
+    if json_input.strip.empty?
+      warn '❌ No input provided. Use --help for usage information.'
+      exit 1
+    end
+
+    # Generate prompt
+    generator = LLMPromptGenerator.new
+    prompt = generator.generate_prompt(json_input)
+
+    # Output result
+    if output_file
+      File.write(output_file, prompt)
+      warn "✓ Generated LLM prompt: #{output_file}"
+    else
+      puts prompt
+    end
+  rescue StandardError => e
+    warn "❌ Error: #{e.message}"
+    exit 1
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME

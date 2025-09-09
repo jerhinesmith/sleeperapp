@@ -1,0 +1,124 @@
+{
+  "league_info": {
+    "name": "Test Fantasy League",
+    "total_rosters": 8,
+    "season": "2025",
+    "status": "in_season"
+  },
+  "week": 1,
+  "generated_at": "2025-09-09T14:00:00-07:00",
+  "matchups": [
+    {
+      "matchup_id": 1,
+      "teams": [
+        {
+          "roster_id": 1,
+          "owner": "testuser1",
+          "team_name": "Test Team 1",
+          "points": 120.5,
+          "starters": [
+            {
+              "id": "4046",
+              "name": "Patrick Mahomes",
+              "points": 25.0
+            }
+          ],
+          "bench": [
+            {
+              "id": "1234",
+              "name": "Bench Player",
+              "points": 10.0
+            }
+          ],
+          "bench_points_total": 10.0
+        }
+      ],
+      "winner": {
+        "roster_id": 1,
+        "team_name": "Test Team 1",
+        "owner": "testuser1",
+        "points": 120.5
+      },
+      "margin": 15.5
+    }
+  ],
+  "transactions": {
+    "week": 1,
+    "count": 1,
+    "items": [
+      {
+        "type": "free_agent",
+        "status": "complete",
+        "roster_ids": [1],
+        "players_added": [
+          {
+            "id": "5678",
+            "name": "Added Player",
+            "roster_id": 1,
+            "direction": "to_roster"
+          }
+        ],
+        "players_dropped": [],
+        "waiver_bid": null,
+        "draft_picks": [],
+        "created": "2025-09-09T10:00:00-07:00"
+      }
+    ],
+    "summary": {
+      "total": 1,
+      "by_type": {
+        "free_agent": 1
+      },
+      "waiver_activity": [],
+      "free_agent_activity": [
+        {
+          "roster_ids": [1],
+          "players_added": [
+            {
+              "id": "5678",
+              "name": "Added Player",
+              "roster_id": 1,
+              "direction": "to_roster"
+            }
+          ],
+          "players_dropped": []
+        }
+      ]
+    }
+  },
+  "standings": [
+    {
+      "rank": 1,
+      "roster_id": 1,
+      "owner": "testuser1",
+      "team_name": "Test Team 1",
+      "wins": 1,
+      "losses": 0,
+      "ties": 0,
+      "points_for": 120.5,
+      "points_against": 105.0
+    },
+    {
+      "rank": 2,
+      "roster_id": 2,
+      "owner": "danielle",
+      "team_name": "Danielle's Team",
+      "wins": 0,
+      "losses": 1,
+      "ties": 0,
+      "points_for": 105.0,
+      "points_against": 120.5
+    }
+  ],
+  "last_place_watch": [
+    {
+      "roster_id": 2,
+      "owner": "danielle",
+      "team_name": "Danielle's Team",
+      "wins": 0,
+      "losses": 1,
+      "points_for": 105,
+      "points_against": 120
+    }
+  ]
+}
