@@ -22,7 +22,10 @@ rescue LoadError
   # dotenv not available, continue without it
 end
 
-class LLMPromptGenerator
+# Load our configuration system
+require_relative '../lib/config_loader'
+
+class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
   def initialize
     @json_data = nil
   end
@@ -70,6 +73,18 @@ class LLMPromptGenerator
     league_name = @json_data.dig('league_info', 'name') || 'Fantasy League'
     week = @json_data['week']
 
+    # Get relationship context
+    owner_names = extract_owner_names
+    relationships = ConfigLoader.find_relationship_context(owner_names)
+
+    relationship_context = if relationships.any?
+                             "\n\n**Family/Friend Relationships:**\n#{relationships.map do |rel|
+                               "- #{rel}"
+                             end.join("\n")}"
+                           else
+                             ''
+                           end
+
     <<~CONTEXT
       ## League Context
 
@@ -77,7 +92,7 @@ class LLMPromptGenerator
       **Week:** #{week}
       **Generated:** #{@json_data['generated_at']}
 
-      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.
+      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.#{relationship_context}
     CONTEXT
   end
 
@@ -120,12 +135,17 @@ class LLMPromptGenerator
                       "Focus on: #{danielle_teams.map { |t| t[:team_name] }.join(', ')}"
                     end
 
+    # Get a Madison Beer quote based on this week's context
+    context_themes = determine_week_themes
+    madison_quote = ConfigLoader.select_madison_beer_quote(context_themes)
+
     <<~SPECIAL
       ## 🎵 Special Sections Instructions
 
       ### Madison Beer Quote of the Week
-      - Include a made-up but plausible Madison Beer quote that somehow relates to this week's fantasy results
-      - Make it sound like something she might actually say on social media
+      Use this actual Madison Beer inspired quote: "#{madison_quote[:text]}"
+      - Context: #{madison_quote[:context]}
+      - Relate it to this week's fantasy results in a creative way
       - Keep it PG and fun
 
       ### "Danielle Last Place Watch"
@@ -172,6 +192,73 @@ class LLMPromptGenerator
 
       **Now generate the fun weekly summary using this data and following all the instructions above!**
     DATA
+  end
+
+  def extract_owner_names
+    names = []
+
+    # Get names from standings
+    if @json_data['standings']
+      names.concat(@json_data['standings'].map { |team| team['owner'] }.compact)
+    end
+
+    # Get names from matchups
+    @json_data['matchups']&.each do |matchup|
+      matchup['teams']&.each do |team|
+        names << team['owner'] if team['owner']
+      end
+    end
+
+    names.uniq.compact
+  end
+
+  def determine_week_themes
+    themes = []
+    themes.concat(analyze_matchup_themes)
+    themes.concat(analyze_standings_themes)
+    themes.uniq
+  end
+
+  def analyze_matchup_themes
+    themes = []
+    return themes unless @json_data['matchups']
+
+    @json_data['matchups'].each do |matchup|
+      next unless matchup['teams']&.size == 2
+
+      themes.concat(extract_matchup_themes(matchup))
+    end
+
+    themes
+  end
+
+  def extract_matchup_themes(matchup)
+    themes = []
+    team1, team2 = matchup['teams']
+    margin = matchup['margin'] || 0
+
+    themes << 'close_games' if margin < 10
+    themes << 'dominance' if margin > 40
+
+    if team1 && team2
+      total_points = (team1['points'] || 0) + (team2['points'] || 0)
+      themes << 'high_scoring' if total_points > 250
+    end
+
+    themes
+  end
+
+  def analyze_standings_themes
+    themes = []
+    return themes unless @json_data['standings']
+
+    first_place = @json_data['standings'].first
+    themes << 'winning_streak' if first_place && (first_place['wins'] || 0) > 1
+
+    last_place = @json_data['standings'].last
+    themes << 'struggles' if last_place && (last_place['wins'] || 0).zero?
+
+    themes
   end
 
   def find_danielle_teams

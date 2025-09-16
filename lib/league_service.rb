@@ -43,28 +43,57 @@ class LeagueService
   end
 
   def team_standings
-    rosters.sort_by { |r| -(r.dig('settings', 'wins') || 0) }
+    rosters.sort_by do |r|
+      settings = r['settings'] || {}
+      wins = (settings['wins'] || 0).to_i
+      points_for = calculate_total_points(settings, 'fpts', 'fpts_decimal')
+      points_against = calculate_total_points(settings, 'fpts_against', 'fpts_against_decimal')
+
+      [-wins, -points_for, points_against]
+    end
   end
 
   def last_place_teams(count = 1)
-    sorted = rosters.sort_by { |r| r.dig('settings', 'wins') || 0 }
+    sorted = sort_rosters_for_last_place
     last_place_rosters = sorted.take(count)
+    format_last_place_teams(last_place_rosters)
+  end
 
-    last_place_rosters.map do |roster|
+  private
+
+  def calculate_total_points(settings, base_field, decimal_field)
+    base = (settings[base_field] || 0).to_f
+    decimal = (settings[decimal_field] || 0).to_f / 100
+    base + decimal
+  end
+
+  def sort_rosters_for_last_place
+    rosters.sort_by do |r|
+      settings = r['settings'] || {}
+      wins = (settings['wins'] || 0).to_i
+      points_for = calculate_total_points(settings, 'fpts', 'fpts_decimal')
+      points_against = calculate_total_points(settings, 'fpts_against', 'fpts_against_decimal')
+
+      [wins, points_for, -points_against]
+    end
+  end
+
+  def format_last_place_teams(rosters)
+    rosters.map do |roster|
       owner_info = roster_owner_map[roster['roster_id'].to_i]
+      settings = roster['settings'] || {}
       {
         roster_id: roster['roster_id'].to_i,
         owner: owner_info&.dig('display_name') || 'Unknown',
         team_name: owner_info&.dig('team_name') || 'Unknown',
-        wins: roster.dig('settings', 'wins') || 0,
-        losses: roster.dig('settings', 'losses') || 0,
-        points_for: roster.dig('settings', 'fpts') || 0,
-        points_against: roster.dig('settings', 'fpts_against') || 0
+        wins: settings['wins'] || 0,
+        losses: settings['losses'] || 0,
+        points_for: calculate_total_points(settings, 'fpts', 'fpts_decimal').round(2),
+        points_against: calculate_total_points(settings, 'fpts_against',
+                                               'fpts_against_decimal').round(2)
       }
     end
   end
-
-  private
 
   def build_user_lookup
     users.each_with_object({}) do |user, lookup|

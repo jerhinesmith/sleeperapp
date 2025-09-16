@@ -1,0 +1,56 @@
+# Player Relationships Configuration
+#
+# This file defines family/friend relationships between league members
+# for use in weekly summary generation.
+#
+# Format:
+#   relationships:
+#     - type: "siblings"           # Type of relationship
+#       members: ["name1", "name2"] # List of related members
+#       note: "Optional context"    # Additional context (optional)
+#
+# Supported relationship types:
+#   - siblings, parent_child, spouses, partners, cousins, friends, coworkers, aunt_nephew
+
+relationships:
+  # Example relationships - update these with your actual league members
+  - type: "siblings"
+    members: ["jerhinesmith", "drhinesmith"]
+    note: "Dummy's other dummies"
+
+  - type: "parent_child"
+    members: ["raffel75", "sararaffel"]
+
+  - type: "parent_child"
+    members: ["dstrock", "jerhinesmith"]
+
+  - type: "parent_child"
+    members: ["dstrock", "drhinesmith"]
+
+  - type: "spouses"
+    members: ["tstrock", "dstrock"]
+
+  - type: "cousins"
+    members: ["raffel75", "jerhinesmith", "drhinesmith", "BWilson8080"]
+
+  - type: "partners"
+    members: ["Skyallen", "drhinesmith"]
+
+  - type: "aunt_nephew"
+    members: ["dstrock", "raffel75"]
+
+  - type: "aunt_nephew"
+    members: ["dstrock", "BWilson8080"]
+
+  # Add more relationships as needed:
+  # - type: "parent_child"
+  #   members: ["parent_name", "child_name"]
+  #   note: "Father and son duo"
+  #
+  # - type: "cousins"
+  #   members: ["cousin1", "cousin2", "cousin3"]
+  #   note: "The cousin crew"
+  #
+  # - type: "friends"
+  #   members: ["friend1", "friend2"]
+  #   note: "College roommates"

@@ -38,6 +38,30 @@ class WeeklySummaryGenerator
 
   private
 
+  def format_standing_entry(roster, index, roster_map)
+    owner_info = roster_map[roster['roster_id'].to_i]
+    settings = roster['settings'] || {}
+
+    {
+      rank: index + 1,
+      roster_id: roster['roster_id'].to_i,
+      owner: owner_info&.dig('display_name') || 'Unknown',
+      team_name: owner_info&.dig('team_name') || 'Unknown',
+      wins: settings['wins'] || 0,
+      losses: settings['losses'] || 0,
+      ties: settings['ties'] || 0,
+      points_for: calculate_total_points(settings, 'fpts', 'fpts_decimal').round(2),
+      points_against: calculate_total_points(settings, 'fpts_against',
+                                             'fpts_against_decimal').round(2)
+    }
+  end
+
+  def calculate_total_points(settings, base_field, decimal_field)
+    base = (settings[base_field] || 0).to_f
+    decimal = (settings[decimal_field] || 0).to_f / 100
+    base + decimal
+  end
+
   def extract_league_info
     info = @league_service.league_info
     {
@@ -68,20 +92,7 @@ class WeeklySummaryGenerator
     roster_map = @league_service.roster_owner_map
 
     standings.map.with_index do |roster, index|
-      owner_info = roster_map[roster['roster_id'].to_i]
-      settings = roster['settings'] || {}
-
-      {
-        rank: index + 1,
-        roster_id: roster['roster_id'].to_i,
-        owner: owner_info&.dig('display_name') || 'Unknown',
-        team_name: owner_info&.dig('team_name') || 'Unknown',
-        wins: settings['wins'] || 0,
-        losses: settings['losses'] || 0,
-        ties: settings['ties'] || 0,
-        points_for: (settings['fpts'] || 0).to_f.round(2),
-        points_against: (settings['fpts_against'] || 0).to_f.round(2)
-      }
+      format_standing_entry(roster, index, roster_map)
     end
   end
 end

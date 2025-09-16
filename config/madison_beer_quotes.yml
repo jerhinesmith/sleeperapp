@@ -1,0 +1,60 @@
+# Madison Beer Quotes Database
+#
+# Collection of appropriate Madison Beer quotes/lyrics that can relate to fantasy football
+# These are direct lyric excerpts (each < 90 chars) with song attribution
+#
+# Each quote should be:
+# - Family-friendly and appropriate
+# - Relatable to fantasy football situations
+# - In the spirit of Madison Beer's music themes
+
+quotes:
+  - text: "You're killing my vibe"
+    song: "Good in Goodbye"
+    context: "trash talk after an opponent lays an egg"
+    themes: ["attitude", "dominance", "shade"]
+
+  - text: "There’s good in goodbye"
+    song: "Good in Goodbye"
+    context: "dropping a busted player or making a cold trade"
+    themes: ["moving_on", "strategy", "waivers"]
+
+  - text: "I ain't got no time for no games"
+    song: "Home With You"
+    context: "set-and-forget lineup energy; no tilting"
+    themes: ["focus", "discipline", "swagger"]
+
+  - text: "You got a nice face — big deal"
+    song: "Home With You"
+    context: "calling out paper tigers and lucky wins"
+    themes: ["trash_talk", "confidence"]
+
+  - text: "I'm lettin' you in, you're lettin' me down"
+    song: "BOYSHIT (clean)"
+    context: "boom-bust player disappoints… again"
+    themes: ["frustration", "inconsistency"]
+
+  - text: "I shouldn't love you, but I couldn't help it"
+    song: "Selfish"
+    context: "starting a risky upside play you can’t quit"
+    themes: ["temptation", "upside", "risk"]
+
+  - text: "This is a story I hate"
+    song: "Reckless"
+    context: "injury week or bad-beat Monday Night meltdown"
+    themes: ["pain", "bad_luck"]
+
+  - text: "You walk into a room and people fall for you"
+    song: "Showed Me (How I Fell in Love with You)"
+    context: "stud WR/QB who commands the room (and the points)"
+    themes: ["star_power", "dominance"]
+
+  - text: "Make you mine"
+    song: "Make You Mine"
+    context: "waiver claim you’re determined to roster"
+    themes: ["waivers", "assertiveness"]
+
+  - text: "Nothing can break me"
+    song: "Unbreakable"
+    context: "team on a heater; top scorer week"
+    themes: ["resilience", "confidence", "streaks"]
