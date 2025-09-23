@@ -162,6 +162,14 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
       - If Danielle isn't actually in last place, playfully roast her anyway
       - Include record, recent performance, and chances of avoiding the sacko
       - Make it sound like a sports ticker update but with family sass
+
+      ### Next Week Preview
+      - Create a "Looking Ahead" section with next week's matchup previews
+      - Highlight interesting storylines and potential revenge games
+      - Mention key players to watch and potential lineup decisions
+      - Build anticipation for competitive matchups
+      - Include family dynamics if relatives are facing off
+      - Keep it brief but engaging - 2-3 sentences per matchup
     SPECIAL
   end
 
@@ -182,7 +190,7 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
       3. Waiver Wire Report
       4. Madison Beer Quote of the Week
       5. Danielle Last Place Watch
-      6. Looking Ahead (brief teaser for next week)
+      6. Next Week Preview (upcoming matchups and storylines)
 
       **Length:** Aim for 500-800 words total - detailed enough to be engaging but not overwhelming.
     TONE

@@ -27,6 +27,7 @@ class WeeklySummaryGenerator
       generated_at: Time.now.iso8601,
       league_info: extract_league_info,
       matchups: generate_matchup_summaries(week),
+      next_week_matchups: generate_next_week_preview(week + 1),
       transactions: generate_transaction_summary(week),
       standings: generate_standings,
       last_place_watch: @league_service.last_place_teams(2) # Bottom 2 teams
@@ -94,5 +95,53 @@ class WeeklySummaryGenerator
     standings.map.with_index do |roster, index|
       format_standing_entry(roster, index, roster_map)
     end
+  end
+
+  def generate_next_week_preview(next_week)
+    puts "Fetching next week (#{next_week}) matchups for preview..." if $VERBOSE
+
+    begin
+      next_week_data = @league_service.matchups(next_week)
+      return nil if next_week_data.nil? || next_week_data.empty?
+
+      # Group matchups and format them for preview
+      grouped_matchups = next_week_data.group_by { |m| m['matchup_id'] }
+
+      preview_matchups = grouped_matchups.keys.sort.compact.map do |matchup_id|
+        teams_data = grouped_matchups[matchup_id]
+        next if teams_data.length != 2 # Skip incomplete matchups
+
+        format_preview_matchup(matchup_id, teams_data)
+      end.compact
+
+      {
+        week: next_week,
+        matchups: preview_matchups,
+        total_matchups: preview_matchups.length
+      }
+    rescue SleeperAPI::APIError => e
+      puts "Could not fetch next week matchups: #{e.message}" if $VERBOSE
+      nil
+    end
+  end
+
+  def format_preview_matchup(matchup_id, teams_data)
+    roster_map = @league_service.roster_owner_map
+
+    teams = teams_data.map do |team_data|
+      roster_id = team_data['roster_id'].to_i
+      owner_info = roster_map[roster_id]
+
+      {
+        roster_id: roster_id,
+        owner: owner_info&.dig('display_name') || 'Unknown',
+        team_name: owner_info&.dig('team_name') || 'Unknown'
+      }
+    end
+
+    {
+      matchup_id: matchup_id,
+      teams: teams
+    }
   end
 end
