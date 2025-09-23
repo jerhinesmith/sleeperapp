@@ -50,7 +50,7 @@ class ConfigLoader
     end
   end
 
-  def self.build_relationship_description(relationship, matching_members)
+  def self.build_relationship_description(relationship, matching_members) # rubocop:disable Metrics/MethodLength,Metrics/AbcSize,Metrics/CyclomaticComplexity
     relationship_desc = case relationship['type']
                         when 'siblings'
                           "#{matching_members.join(' and ')} are siblings"
@@ -61,6 +61,18 @@ class ConfigLoader
                         when 'parent_child'
                           "#{matching_members.first} and #{matching_members.last} are " \
                           'parent and child'
+                        when 'father_daughter'
+                          "#{matching_members.first} is #{matching_members.last}'s father - " \
+                          "#{matching_members.last} is #{matching_members.first}'s daughter"
+                        when 'father_son'
+                          "#{matching_members.first} is #{matching_members.last}'s father - " \
+                          "#{matching_members.last} is #{matching_members.first}'s son"
+                        when 'mother_daughter'
+                          "#{matching_members.first} is #{matching_members.last}'s mother - " \
+                          "#{matching_members.last} is #{matching_members.first}'s daughter"
+                        when 'mother_son'
+                          "#{matching_members.first} is #{matching_members.last}'s mother - " \
+                          "#{matching_members.last} is #{matching_members.first}'s son"
                         when 'aunt_nephew'
                           "#{matching_members.first} is an aunt to #{matching_members.last}"
                         when 'cousins'

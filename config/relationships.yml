@@ -18,13 +18,13 @@ relationships:
     members: ["jerhinesmith", "drhinesmith"]
     note: "Dummy's other dummies"
 
-  - type: "parent_child"
+  - type: "father_daughter"
     members: ["raffel75", "sararaffel"]
 
-  - type: "parent_child"
+  - type: "mother_son"
     members: ["dstrock", "jerhinesmith"]
 
-  - type: "parent_child"
+  - type: "mother_daughter"
     members: ["dstrock", "drhinesmith"]
 
   - type: "spouses"
