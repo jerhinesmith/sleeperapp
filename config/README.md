@@ -45,6 +45,84 @@ relationships:
 
 The relationship information will automatically appear in the LLM prompt's League Context section when related members are active in the current week's matchups.
 
+## team_mappings.yml
+
+Provides explicit mappings between fantasy team names and their owners to prevent confusion in LLM prompt generation. This is especially useful when team names don't clearly indicate who owns them (e.g., "Dummy's Dummies" owned by "Darlene").
+
+### Format
+
+```yaml
+team_mappings:
+  "Team Name 1": "owner_username"  # Simple string format
+  "Team Name 2":                   # Extended format with pronouns
+    owner: "another_owner"
+    pronouns: "he/him"             # Optional: helps LLM use correct pronouns
+
+special_targets:
+  danielle_teams:
+    - "team_name_1"
+    - "team_name_2"
+```
+
+### Example
+
+```yaml
+team_mappings:
+  "Dummy's Dummies": "darlene"
+  "The Champions": "john_smith"
+  "Fantasy Legends": "mike_jones"
+  "Dana's Team":
+    owner: "Dana"
+    pronouns: "he/him"             # Helps LLM use correct pronouns
+
+special_targets:
+  danielle_teams:
+    - "Danielle's Destroyers"
+    - "Team Danielle"
+```
+
+### How It Works
+
+1. **Explicit Team Mappings**: When the LLM encounters a team name that has an explicit mapping, it will use the mapped owner name instead of guessing
+2. **Pronoun Support**: The extended format allows you to specify pronouns to help the LLM use correct pronouns (he/him, she/her, they/them, etc.)
+3. **Special Targets**: For features like "Danielle Last Place Watch", you can explicitly specify which teams should be targeted
+4. **Fallback Logic**: If no explicit mapping exists, the system falls back to intelligent name matching
+
+### Automatic Generation
+
+You can automatically generate the team mappings file from your Sleeper league data:
+
+```bash
+# Using environment variable
+SLEEPER_LEAGUE_ID=123456789012345678 bin/generate_team_mappings
+
+# Using command line argument
+bin/generate_team_mappings 123456789012345678
+
+# Preserve existing mappings when updating
+bin/generate_team_mappings --preserve
+```
+
+This will create a `team_mappings.yml` file with all your team names and empty owner fields for you to fill in manually.
+
+### Usage
+
+The team mapping information automatically appears in the LLM prompt's League Context section, providing clear guidance like:
+
+```
+**Team Name to Owner Mappings:**
+- Dummy's Dummies → darlene (explicit mapping)
+- The Champions → john_smith (explicit mapping)
+- Dana's Team → Dana (explicit mapping)
+- Team Smith → mike_smith
+
+**Pronoun Information:**
+- Dana uses he/him pronouns
+
+**IMPORTANT:** Always use the correct owner name when referring to teams.
+Do not confuse team names with owner names. Use the correct pronouns for each person.
+```
+
 ## madison_beer_quotes.yml
 
 Contains a curated collection of Madison Beer-inspired quotes that relate to fantasy football situations.

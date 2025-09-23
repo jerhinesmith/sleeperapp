@@ -1,0 +1,273 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Team Mappings Generator for Sleeper Weekly Summary
+# - Pulls team names and owners from Sleeper API
+# - Generates team_mappings.yml configuration file
+# - Leaves owner mappings empty for manual configuration
+#
+# Usage:
+#   bin/generate_team_mappings [LEAGUE_ID] [OPTIONS]
+#   SLEEPER_LEAGUE_ID=123456789 bin/generate_team_mappings
+#
+# Examples:
+#   # Using environment variable
+#   SLEEPER_LEAGUE_ID=123456789012345678 bin/generate_team_mappings
+#
+#   # Using command line argument (overrides ENV)
+#   bin/generate_team_mappings 123456789012345678
+#   bin/generate_team_mappings 123456789012345678 --output custom_mappings.yml
+#
+
+require 'yaml'
+require_relative '../lib/league_service'
+
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
+def show_help
+  warn "Usage: #{File.basename($PROGRAM_NAME)} [LEAGUE_ID] [OPTIONS]"
+  warn ''
+  warn 'Arguments:'
+  warn '  LEAGUE_ID    Sleeper league ID (optional if SLEEPER_LEAGUE_ID env var is set)'
+  warn ''
+  warn 'Options:'
+  warn '  --output PATH   Output YAML to file at PATH (default: config/team_mappings.yml)'
+  warn '  --verbose       Enable verbose output'
+  warn '  --preserve      Preserve existing mappings when updating'
+  warn '  --help, -h      Show this help message'
+  warn ''
+  warn 'Environment Variables:'
+  warn '  SLEEPER_LEAGUE_ID   League ID to use if not provided as argument'
+  warn ''
+  warn 'Examples:'
+  warn '  # Using environment variable'
+  warn "  SLEEPER_LEAGUE_ID=123456789 #{File.basename($PROGRAM_NAME)}"
+  warn ''
+  warn '  # With specific league ID'
+  warn "  #{File.basename($PROGRAM_NAME)} 123456789012345678"
+  warn ''
+  warn '  # Custom output file'
+  warn "  #{File.basename($PROGRAM_NAME)} 123456789 --output my_mappings.yml"
+end
+
+def parse_arguments!
+  # Show help if explicitly requested
+  if ARGV.include?('--help') || ARGV.include?('-h')
+    show_help
+    exit 0
+  end
+
+  # Show help if no args and no league ID in environment
+  if ARGV.empty? && ENV['SLEEPER_LEAGUE_ID'].nil?
+    show_help
+    exit 2
+  end
+
+  # Determine league ID
+  league_id = if ARGV.empty? || !ARGV[0].match?(/^\d{10,}$/)
+                ENV.fetch('SLEEPER_LEAGUE_ID', nil)
+              else
+                ARGV[0]
+              end
+
+  unless league_id
+    warn '❌ Error: No league ID provided'
+    warn 'Set SLEEPER_LEAGUE_ID environment variable or provide as first argument'
+    exit 1
+  end
+
+  # Parse optional arguments
+  output_path = File.join(__dir__, '..', 'config', 'team_mappings.yml')
+  verbose = false
+  preserve = false
+
+  ARGV.each_with_index do |arg, i|
+    case arg
+    when '--output', '-o'
+      output_path = ARGV[i + 1]
+    when '--verbose', '-v'
+      verbose = true
+    when '--preserve', '-p'
+      preserve = true
+    end
+  end
+
+  $VERBOSE = verbose
+
+  [league_id, output_path, preserve]
+end
+
+def load_existing_mappings(file_path)
+  return { 'team_mappings' => {}, 'special_targets' => {} } unless File.exist?(file_path)
+
+  begin
+    data = YAML.load_file(file_path)
+    {
+      'team_mappings' => data['team_mappings'] || {},
+      'special_targets' => data['special_targets'] || {}
+    }
+  rescue StandardError => e
+    puts "Warning: Could not load existing mappings: #{e.message}" if $VERBOSE
+    { 'team_mappings' => {}, 'special_targets' => {} }
+  end
+end
+
+def build_user_lookup(users)
+  users.each_with_object({}) do |user, lookup|
+    team_name = user.dig('metadata', 'team_name')&.strip || ''
+    display_name = user['display_name'] || user['username'] || 'Unknown'
+
+    lookup[user['user_id']] = {
+      'display_name' => display_name,
+      'team_name' => team_name.empty? ? display_name : team_name
+    }
+  end
+end
+
+def process_roster_mapping(roster, user_lookup, existing_mappings, preserve_existing)
+  owner_info = user_lookup[roster['owner_id']] || {}
+  team_name = owner_info['team_name'] || owner_info['display_name'] || 'Unknown Team'
+  owner_name = owner_info['display_name'] || 'Unknown Owner'
+
+  # If preserving existing mappings, keep the current value
+  if preserve_existing && existing_mappings['team_mappings'][team_name]
+    existing_value = existing_mappings['team_mappings'][team_name]
+    display_value = case existing_value
+                    when Hash
+                      "#{existing_value['owner']} (#{existing_value['pronouns'] || 'no pronouns'})"
+                    when String
+                      existing_value
+                    else
+                      'empty'
+                    end
+    puts "🔒 Preserved existing mapping: #{team_name} → #{display_value}" if $VERBOSE
+    existing_value
+  else
+    # Set to empty string for manual configuration
+    puts "✨ New team mapping: #{team_name} (detected owner: #{owner_name})" if $VERBOSE
+    ''
+  end
+end
+
+def generate_team_mappings(league_service, existing_mappings, preserve_existing)
+  puts '📡 Fetching league data...' if $VERBOSE
+
+  rosters = league_service.rosters
+  users = league_service.users
+  league_info = league_service.league_info
+
+  puts "🏈 League: #{league_info['name']}" if $VERBOSE
+  puts "👥 Found #{rosters.length} teams" if $VERBOSE
+
+  # Build user lookup
+  user_lookup = build_user_lookup(users)
+
+  # Generate team mappings
+  team_mappings = {}
+  rosters.each do |roster|
+    owner_info = user_lookup[roster['owner_id']] || {}
+    team_name = owner_info['team_name'] || owner_info['display_name'] || 'Unknown Team'
+
+    team_mappings[team_name] =
+      process_roster_mapping(roster, user_lookup, existing_mappings, preserve_existing)
+  end
+
+  team_mappings
+end
+
+def build_yaml_content(team_mappings, existing_special_targets, league_info)
+  content = []
+  content << '# Team Name to Owner Mappings Configuration'
+  content << '#'
+  content << "# Generated automatically from Sleeper API for league: #{league_info['name']}"
+  content << "# Generated at: #{Time.now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+  content << '#'
+  content << '# This file provides explicit mappings between fantasy team names and their owners'
+  content << '# to prevent confusion in LLM prompt generation. Fill in the empty strings with'
+  content << '# the correct owner usernames for teams that need explicit mapping.'
+  content << '#'
+  content << '# Format:'
+  content << '#   team_mappings:'
+  content << '#     "Team Name 1": "owner_username"'
+  content << '#     "Team Name 2": "another_owner"'
+  content << '#'
+  content << '# Special mappings for specific features:'
+  content << '#   special_targets:'
+  content << '#     danielle_teams:'
+  content << '#       - "team_name_1"'
+  content << '#       - "team_name_2"'
+  content << '#'
+  content << ''
+
+  # Build the YAML structure
+  yaml_data = {
+    'team_mappings' => team_mappings,
+    'special_targets' => existing_special_targets
+  }
+
+  content << YAML.dump(yaml_data)
+  content.join("\n")
+end
+
+def main
+  league_id, output_path, preserve_existing = parse_arguments!
+
+  begin
+    # Load existing mappings if preserving
+    existing_mappings = if preserve_existing
+                          load_existing_mappings(output_path)
+                        else
+                          {
+                            'team_mappings' => {}, 'special_targets' => {}
+                          }
+                        end
+
+    # Initialize league service
+    league_service = LeagueService.new(league_id)
+    league_info = league_service.league_info
+
+    puts "🚀 Generating team mappings for league: #{league_info['name']}" if $VERBOSE
+
+    # Generate team mappings
+    team_mappings = generate_team_mappings(league_service, existing_mappings, preserve_existing)
+
+    # Build YAML content
+    yaml_content = build_yaml_content(team_mappings, existing_mappings['special_targets'],
+                                      league_info)
+
+    # Write to file
+    File.write(output_path, yaml_content)
+
+    puts '✅ Successfully generated team mappings!'
+    puts "📁 Output file: #{output_path}"
+    puts "📝 Found #{team_mappings.length} teams"
+
+    if preserve_existing
+      preserved_count = team_mappings.count { |_, v| !v.empty? }
+      puts "🔒 Preserved #{preserved_count} existing mappings" if preserved_count.positive?
+    end
+
+    puts ''
+    puts '📋 Next steps:'
+    puts "1. Edit #{output_path}"
+    puts '2. Fill in owner names for teams that need explicit mapping'
+    puts '3. Configure special_targets if needed (e.g., danielle_teams)'
+    puts ''
+    puts '💡 Teams with empty owner mappings will use automatic detection'
+  rescue SleeperAPI::APIError => e
+    warn "❌ API Error: #{e.message}"
+    exit 1
+  rescue StandardError => e
+    warn "❌ Unexpected error: #{e.message}"
+    warn e.backtrace.join("\n") if $VERBOSE
+    exit 1
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME

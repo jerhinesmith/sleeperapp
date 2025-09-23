@@ -3,7 +3,7 @@
 require 'yaml'
 
 # Handles loading configuration files for relationships and quotes
-class ConfigLoader
+class ConfigLoader # rubocop:disable Metrics/ClassLength
   CONFIG_DIR = File.join(__dir__, '..', 'config')
 
   def self.load_relationships
@@ -26,6 +26,20 @@ class ConfigLoader
   rescue StandardError => e
     puts "Warning: Could not load Madison Beer quotes config: #{e.message}" if $VERBOSE
     []
+  end
+
+  def self.load_team_mappings
+    mappings_file = File.join(CONFIG_DIR, 'team_mappings.yml')
+    return { 'team_mappings' => {}, 'special_targets' => {} } unless File.exist?(mappings_file)
+
+    data = YAML.load_file(mappings_file)
+    {
+      'team_mappings' => data['team_mappings'] || {},
+      'special_targets' => data['special_targets'] || {}
+    }
+  rescue StandardError => e
+    puts "Warning: Could not load team mappings config: #{e.message}" if $VERBOSE
+    { 'team_mappings' => {}, 'special_targets' => {} }
   end
 
   def self.find_relationship_context(owner_names)
@@ -114,5 +128,101 @@ class ConfigLoader
       text: 'Stay focused on your goals and trust the process',
       context: 'good general motivation for any fantasy situation'
     }
+  end
+
+  def self.get_team_owner(team_name)
+    mappings = load_team_mappings
+    team_mappings = mappings['team_mappings'] || {}
+    mapping = team_mappings[team_name]
+
+    case mapping
+    when Hash
+      mapping['owner']
+    when String
+      mapping
+    end
+  end
+
+  def self.get_team_pronouns(team_name)
+    mappings = load_team_mappings
+    team_mappings = mappings['team_mappings'] || {}
+    mapping = team_mappings[team_name]
+
+    return mapping['pronouns'] if mapping.is_a?(Hash)
+
+    nil
+  end
+
+  def self.get_team_info(team_name)
+    mappings = load_team_mappings
+    team_mappings = mappings['team_mappings'] || {}
+    mapping = team_mappings[team_name]
+
+    case mapping
+    when Hash
+      {
+        owner: mapping['owner'],
+        pronouns: mapping['pronouns']
+      }
+    when String
+      {
+        owner: mapping,
+        pronouns: nil
+      }
+    else
+      {
+        owner: nil,
+        pronouns: nil
+      }
+    end
+  end
+
+  def self.get_special_target_teams(target_type)
+    mappings = load_team_mappings
+    special_targets = mappings['special_targets'] || {}
+    special_targets[target_type] || []
+  end
+
+  def self.find_teams_by_owner_or_explicit_mapping(teams_data, target_owner,
+                                                   fallback_search_terms = [])
+    # Try explicit mapping first
+    explicit_teams = find_explicit_team_mappings(target_owner)
+    return find_teams_by_explicit_mapping(teams_data, explicit_teams) if explicit_teams.any?
+
+    # Fallback to search logic
+    search_teams_by_terms(teams_data, [target_owner] + fallback_search_terms)
+  end
+
+  def self.find_explicit_team_mappings(target_owner)
+    mappings = load_team_mappings
+    team_mappings = mappings['team_mappings'] || {}
+
+    team_mappings.select do |_team_name, mapping|
+      owner = case mapping
+              when Hash
+                mapping['owner']
+              when String
+                mapping
+              end
+
+      owner&.downcase == target_owner.downcase
+    end
+  end
+
+  def self.find_teams_by_explicit_mapping(teams_data, explicit_teams)
+    teams_data.select do |team|
+      explicit_teams.key?(team['team_name']) || explicit_teams.key?(team[:team_name])
+    end
+  end
+
+  def self.search_teams_by_terms(teams_data, search_terms)
+    teams_data.select do |team|
+      name_fields = [team['owner'], team['team_name'], team[:owner], team[:team_name]]
+                    .compact.map(&:to_s).map(&:downcase)
+
+      search_terms.any? do |term|
+        name_fields.any? { |field| field.include?(term.downcase) }
+      end
+    end
   end
 end

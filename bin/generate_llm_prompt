@@ -85,6 +85,9 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
                              ''
                            end
 
+    # Add team-to-owner mappings for clarity
+    team_mappings_context = build_team_mappings_context
+
     <<~CONTEXT
       ## League Context
 
@@ -92,7 +95,7 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
       **Week:** #{week}
       **Generated:** #{@json_data['generated_at']}
 
-      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.#{relationship_context}
+      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.#{relationship_context}#{team_mappings_context}
     CONTEXT
   end
 
@@ -128,11 +131,16 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
   end
 
   def build_special_sections_instructions
-    danielle_teams = find_danielle_teams
+    danielle_teams = find_danielle_teams_improved
     danielle_info = if danielle_teams.empty?
-                      "Look for teams named 'Danielle' or similar, or use the last place team(s)"
+                      'Look for teams owned by Danielle or similar names, ' \
+                        'or use the last place team(s)'
                     else
-                      "Focus on: #{danielle_teams.map { |t| t[:team_name] }.join(', ')}"
+                      team_names = danielle_teams.map do |t|
+                        t['team_name'] || t[:team_name]
+                      end.compact
+                      owner_names = danielle_teams.map { |t| t['owner'] || t[:owner] }.compact.uniq
+                      "Focus on: #{team_names.join(', ')} (owned by: #{owner_names.join(', ')})"
                     end
 
     # Get a Madison Beer quote based on this week's context
@@ -261,13 +269,68 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
     themes
   end
 
-  def find_danielle_teams
+  def find_danielle_teams_improved
     return [] unless @json_data['standings']
 
-    @json_data['standings'].select do |team|
-      name_fields = [team['owner'], team['team_name']].map(&:to_s).map(&:downcase)
-      name_fields.any? { |name| name.include?('danielle') }
+    # First, check if there are explicitly configured Danielle teams
+    explicit_danielle_teams = ConfigLoader.get_special_target_teams('danielle_teams')
+
+    if explicit_danielle_teams.any?
+      # Find teams that match the explicit configuration
+      return @json_data['standings'].select do |team|
+        team_name = team['team_name'] || team[:team_name]
+        explicit_danielle_teams.include?(team_name)
+      end
     end
+
+    # Fallback to improved search with better owner/team distinction
+    ConfigLoader.find_teams_by_owner_or_explicit_mapping(
+      @json_data['standings'],
+      'danielle',
+      %w[dani daniella] # Additional search terms
+    )
+  end
+
+  # Keep the old method for backwards compatibility
+  def find_danielle_teams
+    find_danielle_teams_improved
+  end
+
+  def build_team_mappings_context
+    return '' unless @json_data['standings']
+
+    # Build a list of team-to-owner mappings from the data
+    team_owner_pairs = []
+    pronoun_info = []
+
+    @json_data['standings'].each do |team|
+      team_name = team['team_name'] || team[:team_name] || 'Unknown Team'
+      owner_name = team['owner'] || team[:owner] || 'Unknown Owner'
+
+      # Get team info (owner and pronouns)
+      team_info = ConfigLoader.get_team_info(team_name)
+      actual_owner = team_info[:owner] || owner_name
+      pronouns = team_info[:pronouns]
+
+      mapping_text = "- #{team_name} → #{actual_owner}"
+      mapping_text += ' (explicit mapping)' if team_info[:owner]
+      team_owner_pairs << mapping_text
+
+      # Collect pronoun information
+      pronoun_info << "- #{actual_owner} uses #{pronouns} pronouns" if pronouns
+    end
+
+    return '' if team_owner_pairs.empty?
+
+    context = "\n\n**Team Name to Owner Mappings:**\n#{team_owner_pairs.join("\n")}"
+
+    context += "\n\n**Pronoun Information:**\n#{pronoun_info.join("\n")}" if pronoun_info.any?
+
+    context += "\n\n**IMPORTANT:** Always use the correct owner name when referring to teams. " \
+               'Do not confuse team names with owner names. ' \
+               'Use the correct pronouns for each person.'
+
+    context
   end
 end
 

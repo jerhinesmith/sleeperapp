@@ -1,0 +1,36 @@
+# Team Name to Owner Mappings Configuration
+#
+# Generated automatically from Sleeper API for league: Grandma's Naked Reborn
+# Generated at: 2025-09-23 09:32:15 PDT
+#
+# This file provides explicit mappings between fantasy team names and their owners
+# to prevent confusion in LLM prompt generation. Fill in the empty strings with
+# the correct owner usernames for teams that need explicit mapping.
+#
+# Format:
+#   team_mappings:
+#     "Team Name 1": "owner_username"
+#     "Team Name 2": "another_owner"
+#
+# Special mappings for specific features:
+#   special_targets:
+#     danielle_teams:
+#       - "team_name_1"
+#       - "team_name_2"
+#
+
+---
+team_mappings:
+  Team Rhino: Justin
+  BWilson8080: Brad
+  drhinesmith: Danielle
+  Skyallen:
+    owner: Dana
+    pronouns: he/him
+  Dummy’s Dummies: Darlene
+  Strock’s Jock’s: Todd
+  HoosierDaddy: Mike
+  No Punt Intended: Sara
+special_targets:
+  danielle_teams:
+    - drhinesmith

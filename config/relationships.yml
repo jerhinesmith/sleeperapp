@@ -16,7 +16,6 @@ relationships:
   # Example relationships - update these with your actual league members
   - type: "siblings"
     members: ["jerhinesmith", "drhinesmith"]
-    note: "Dummy's other dummies"
 
   - type: "father_daughter"
     members: ["raffel75", "sararaffel"]
