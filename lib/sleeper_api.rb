@@ -50,4 +50,12 @@ class SleeperAPI
   def self.league_transactions(league_id, week)
     get("league/#{league_id}/transactions/#{week}")
   end
+
+  def self.winners_bracket(league_id)
+    get("league/#{league_id}/winners_bracket")
+  end
+
+  def self.losers_bracket(league_id)
+    get("league/#{league_id}/losers_bracket")
+  end
 end

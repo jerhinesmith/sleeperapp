@@ -21,7 +21,10 @@ class WeeklySummaryGenerator
     week ||= @league_service.current_nfl_week
     puts "Generating summary for week #{week}..." if $VERBOSE
 
-    {
+    in_playoffs = @league_service.in_playoffs?(week)
+    puts "Playoffs: #{in_playoffs}" if $VERBOSE
+
+    summary = {
       league_id: @league_id,
       week: week,
       generated_at: Time.now.iso8601,
@@ -32,6 +35,12 @@ class WeeklySummaryGenerator
       standings: generate_standings,
       last_place_watch: @league_service.last_place_teams(2) # Bottom 2 teams
     }
+
+    if in_playoffs
+      summary[:playoffs] = generate_playoff_summary(week)
+    end
+
+    summary
   rescue SleeperAPI::APIError => e
     puts "Error generating summary: #{e.message}" if $VERBOSE
     raise
@@ -107,7 +116,7 @@ class WeeklySummaryGenerator
       # Group matchups and format them for preview
       grouped_matchups = next_week_data.group_by { |m| m['matchup_id'] }
 
-      preview_matchups = grouped_matchups.keys.sort.compact.map do |matchup_id|
+      preview_matchups = grouped_matchups.keys.compact.sort.map do |matchup_id|
         teams_data = grouped_matchups[matchup_id]
         next if teams_data.length != 2 # Skip incomplete matchups
 
@@ -142,6 +151,60 @@ class WeeklySummaryGenerator
     {
       matchup_id: matchup_id,
       teams: teams
+    }
+  end
+
+  def generate_playoff_summary(week)
+    round = @league_service.playoff_round_for_week(week)
+    puts "Playoff round: #{round}" if $VERBOSE
+
+    {
+      round: round,
+      playoff_week_start: @league_service.playoff_week_start,
+      winners_bracket: format_bracket_matchups(:winners, round),
+      losers_bracket: format_bracket_matchups(:losers, round)
+    }
+  end
+
+  def format_bracket_matchups(bracket_type, round)
+    matchups = @league_service.playoff_matchups_for_round(round, bracket_type: bracket_type)
+    roster_map = @league_service.roster_owner_map
+
+    matchups.map do |m|
+      {
+        match_id: m['m'],
+        round: m['r'],
+        team1: format_playoff_team(m['t1'], m['t1_from'], roster_map),
+        team2: format_playoff_team(m['t2'], m['t2_from'], roster_map),
+        winner: m['w'] ? format_playoff_team_simple(m['w'], roster_map) : nil,
+        loser: m['l'] ? format_playoff_team_simple(m['l'], roster_map) : nil
+      }
+    end
+  end
+
+  def format_playoff_team(team_ref, from_ref, roster_map)
+    # team_ref can be an integer (roster_id) or a hash like {w: 1} meaning winner of match 1
+    if team_ref.is_a?(Hash)
+      if team_ref['w']
+        { from_winner_of_match: team_ref['w'] }
+      elsif team_ref['l']
+        { from_loser_of_match: team_ref['l'] }
+      else
+        { unknown: team_ref }
+      end
+    else
+      format_playoff_team_simple(team_ref, roster_map)
+    end
+  end
+
+  def format_playoff_team_simple(roster_id, roster_map)
+    return nil unless roster_id
+
+    owner_info = roster_map[roster_id.to_i]
+    {
+      roster_id: roster_id.to_i,
+      owner: owner_info&.dig('display_name') || 'Unknown',
+      team_name: owner_info&.dig('team_name') || 'Unknown'
     }
   end
 end

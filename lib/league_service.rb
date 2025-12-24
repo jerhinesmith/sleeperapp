@@ -35,6 +35,37 @@ class LeagueService
     SleeperAPI.league_transactions(@league_id, week)
   end
 
+  def winners_bracket
+    @winners_bracket ||= SleeperAPI.winners_bracket(@league_id)
+  end
+
+  def losers_bracket
+    @losers_bracket ||= SleeperAPI.losers_bracket(@league_id)
+  end
+
+  def playoff_week_start
+    league_info.dig('settings', 'playoff_week_start')&.to_i
+  end
+
+  def in_playoffs?(week)
+    start_week = playoff_week_start
+    return false unless start_week&.positive?
+
+    week >= start_week
+  end
+
+  def playoff_round_for_week(week)
+    start_week = playoff_week_start
+    return nil unless start_week&.positive? && week >= start_week
+
+    week - start_week + 1
+  end
+
+  def playoff_matchups_for_round(round, bracket_type: :winners)
+    bracket = bracket_type == :winners ? winners_bracket : losers_bracket
+    bracket.select { |m| m['r'] == round }
+  end
+
   def roster_owner_map
     return @roster_owner_map if @roster_owner_map
 

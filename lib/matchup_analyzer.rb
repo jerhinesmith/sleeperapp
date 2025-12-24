@@ -10,7 +10,7 @@ class MatchupAnalyzer
   def analyze_matchups(matchups_data)
     grouped_matchups = matchups_data.group_by { |m| m['matchup_id'] }
 
-    grouped_matchups.keys.sort.compact.map do |matchup_id|
+    grouped_matchups.keys.compact.sort.map do |matchup_id|
       analyze_single_matchup(matchup_id, grouped_matchups[matchup_id])
     end
   end
