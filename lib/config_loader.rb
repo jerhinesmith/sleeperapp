@@ -89,6 +89,9 @@ class ConfigLoader # rubocop:disable Metrics/ClassLength
                           "#{matching_members.last} is #{matching_members.first}'s son"
                         when 'aunt_nephew'
                           "#{matching_members.first} is an aunt to #{matching_members.last}"
+                        when 'grandmother_granddaughter'
+                          "#{matching_members.first} is #{matching_members.last}'s grandmother - " \
+                          "#{matching_members.last} is #{matching_members.first}'s granddaughter"
                         when 'cousins'
                           "#{matching_members.join(', ')} are cousins"
                         when 'friends'

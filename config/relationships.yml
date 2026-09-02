@@ -10,7 +10,8 @@
 #       note: "Optional context"    # Additional context (optional)
 #
 # Supported relationship types:
-#   - siblings, parent_child, spouses, partners, cousins, friends, coworkers, aunt_nephew
+#   - siblings, parent_child, spouses, partners, cousins, friends, coworkers,
+#     aunt_nephew, grandmother_granddaughter
 
 relationships:
   # Example relationships - update these with your actual league members
@@ -40,6 +41,18 @@ relationships:
 
   - type: "aunt_nephew"
     members: ["dstrock", "BWilson8080"]
+
+  - type: "siblings"
+    members: ["dstrock", "septuagenarians"]
+
+  - type: "mother_son"
+    members: ["septuagenarians", "raffel75"]
+
+  - type: "grandmother_granddaughter"
+    members: ["septuagenarians", "sararaffel"]
+
+  - type: "partners"
+    members: ["jerhinesmith", "krayla21"]
 
   # Add more relationships as needed:
   # - type: "parent_child"
