@@ -42,7 +42,7 @@ quotes:
   - text: "This is a story I hate"
     song: "Reckless"
     context: "injury week or bad-beat Monday Night meltdown"
-    themes: ["pain", "bad_luck"]
+    themes: ["pain", "bad_luck", "close_games", "struggles"]
 
   - text: "You walk into a room and people fall for you"
     song: "Showed Me (How I Fell in Love with You)"
@@ -57,4 +57,44 @@ quotes:
   - text: "Nothing can break me"
     song: "Unbreakable"
     context: "team on a heater; top scorer week"
-    themes: ["resilience", "confidence", "streaks"]
+    themes: ["resilience", "confidence", "streaks", "winning_streak"]
+
+  - text: "You're such a lost cause"
+    song: "Selfish"
+    context: "roasting a team that's completely out of contention"
+    themes: ["struggles", "shade"]
+
+  - text: "How you gonna fix this?"
+    song: "Selfish"
+    context: "calling out a team after a brutal loss"
+    themes: ["struggles", "trash_talk"]
+
+  - text: "How could you be so reckless with my heart?"
+    song: "Reckless"
+    context: "a boneheaded start/sit decision blows up in your face"
+    themes: ["struggles", "frustration"]
+
+  - text: "So why aren't you dead yet?"
+    song: "Dead"
+    context: "burying an opponent after a total blowout"
+    themes: ["dominance", "high_scoring", "trash_talk"]
+
+  - text: "I really hope it hurts like hell"
+    song: "Hurts Like Hell"
+    context: "delivering a high-scoring beatdown"
+    themes: ["high_scoring", "dominance", "shade"]
+
+  - text: "Say it to my face"
+    song: "Say It to My Face"
+    context: "pre-matchup trash talk callout"
+    themes: ["trash_talk", "confidence"]
+
+  - text: "I'm a natural disaster"
+    song: "Dear Society"
+    context: "a team in complete roster chaos"
+    themes: ["struggles"]
+
+  - text: "You're bad for my health"
+    song: "Dear Society"
+    context: "doom-checking the waiver wire at 1am"
+    themes: ["temptation", "waivers"]
