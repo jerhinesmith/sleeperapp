@@ -138,14 +138,20 @@ quotes:
 
 ### Supported Themes
 
-- `confidence` - For confident performances
-- `winning` - For victories and success
-- `dominance` - For dominant performances
-- `close_games` - For close matchups
-- `comeback` - For comeback victories
-- `struggles` - For teams having difficulties
-- `high_scoring` - For high-scoring games
-- `perseverance` - For fighting through adversity
+Themes are free-form tags matched by exact string against whatever `bin/generate_llm_prompt`
+detects for the week (see `determine_week_themes` in that script). It currently generates:
+
+- `close_games` - margin under 10 points
+- `dominance` - margin over 40 points
+- `high_scoring` - combined matchup score over 250
+- `winning_streak` - first place team with 2+ wins
+- `struggles` - last place team still winless
+
+Every quote should carry at least one of these exact tags to ever get selected automatically;
+anything else (`waivers`, `trash_talk`, `confidence`, etc.) is extra flavor for manual/creative
+use but won't be matched by the week-theme detector above. If you add a new theme to
+`determine_week_themes`, make sure at least one quote is tagged with it, or that path silently
+falls back to the generic quote.
 
 ### How It Works
 
