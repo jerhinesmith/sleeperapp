@@ -1,0 +1,191 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Full Weekly Report Generator for Sleeper Weekly Summary
+# - Runs the existing bin/weekly_summary | bin/generate_llm_prompt pipeline
+# - Pipes the resulting prompt to a headless LLM CLI (defaults to `claude -p`),
+#   instructed to respond with clean HTML instead of Markdown
+# - Converts that HTML to RTF and copies it straight to the clipboard, so
+#   pasting into an email preserves bold/italic without any manual cleanup
+#
+# This replaces the manual "bin/weekly_summary | bin/generate_llm_prompt | pbcopy,
+# paste into chat, ask for better formatting" workflow with one command.
+#
+# Requires macOS (uses textutil + pbcopy).
+#
+# Usage:
+#   bin/full_weekly_report [LEAGUE_ID] [WEEK|auto] [OPTIONS]
+#   SLEEPER_LEAGUE_ID=123456789 bin/full_weekly_report
+#
+# Options:
+#   --llm CMD    Headless LLM command to pipe the prompt to (default: "claude -p")
+#   --no-copy    Print the generated HTML to stdout instead of copying it
+#   --verbose    Enable verbose status output (to stderr)
+#   --help       Show this help message
+#
+# Any other arguments (LEAGUE_ID, WEEK) are passed through to bin/weekly_summary.
+#
+# Examples:
+#   SLEEPER_LEAGUE_ID=123456789012345678 bin/full_weekly_report
+#   bin/full_weekly_report 123456789012345678 1
+#   bin/full_weekly_report --llm "codex exec"
+#
+
+require 'open3'
+require 'tempfile'
+
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
+DEFAULT_LLM_COMMAND = 'claude -p --permission-prompts none'
+
+HTML_FORMAT_INSTRUCTION = <<~INSTRUCTION
+
+  ---
+
+  IMPORTANT - OUTPUT FORMAT: Respond with the recap as clean, semantic HTML only.
+  Use just <h2> for section headings, <p> for paragraphs, <strong> for bold,
+  <em> for italics, and <blockquote> for the Madison Beer quote. Do not include
+  a <!DOCTYPE>, <html>, <head>, or <body> wrapper, code fences, or any Markdown
+  syntax (no "**", "##", etc.). Do not include any preamble, meta-commentary, or
+  explanation before or after the HTML - your entire response must be nothing
+  but the HTML fragment, starting with the first <h2> tag.
+INSTRUCTION
+
+def show_help
+  warn "Usage: #{File.basename($PROGRAM_NAME)} [LEAGUE_ID] [WEEK|auto] [OPTIONS]"
+  warn ''
+  warn 'Runs bin/weekly_summary | bin/generate_llm_prompt, sends the prompt to a'
+  warn 'headless LLM, and copies the formatted recap to the clipboard as rich text.'
+  warn ''
+  warn 'Options:'
+  warn '  --llm CMD    Headless LLM command to pipe the prompt to'
+  warn "               (default: #{DEFAULT_LLM_COMMAND.inspect})"
+  warn '  --no-copy    Print the generated HTML to stdout instead of copying it'
+  warn '  --verbose    Enable verbose status output'
+  warn '  --help       Show this help message'
+  warn ''
+  warn 'Any other arguments (LEAGUE_ID, WEEK) are passed through to bin/weekly_summary.'
+  warn ''
+  warn 'Examples:'
+  warn "  SLEEPER_LEAGUE_ID=123456789012345678 #{File.basename($PROGRAM_NAME)}"
+  warn "  #{File.basename($PROGRAM_NAME)} 123456789012345678 1"
+  warn "  #{File.basename($PROGRAM_NAME)} --llm 'codex exec'"
+end
+
+def parse_arguments!
+  llm_command = DEFAULT_LLM_COMMAND
+  copy_to_clipboard = true
+  verbose = false
+  passthrough_args = []
+
+  i = 0
+  while i < ARGV.length
+    case ARGV[i]
+    when '--llm'
+      i += 1
+      llm_command = ARGV[i]
+    when '--no-copy'
+      copy_to_clipboard = false
+    when '--verbose', '-v'
+      verbose = true
+    when '--help', '-h'
+      show_help
+      exit 0
+    else
+      passthrough_args << ARGV[i]
+    end
+    i += 1
+  end
+
+  $VERBOSE = verbose
+  [llm_command, copy_to_clipboard, passthrough_args]
+end
+
+def run!(*cmd, stdin_data: '')
+  stdout, stderr, status = Open3.capture3(*cmd, stdin_data: stdin_data)
+  raise "`#{cmd.join(' ')}` failed: #{stderr}" unless status.success?
+
+  stdout
+end
+
+def generate_html_recap(bin_dir, llm_command, passthrough_args)
+  puts '📡 Fetching week data...' if $VERBOSE
+  json = run!(File.join(bin_dir, 'weekly_summary'), *passthrough_args)
+
+  puts '📝 Building LLM prompt...' if $VERBOSE
+  prompt = run!(File.join(bin_dir, 'generate_llm_prompt'), stdin_data: json)
+
+  puts "🤖 Generating recap via `#{llm_command}`..." if $VERBOSE
+  response = run!(*llm_command.split, stdin_data: prompt + HTML_FORMAT_INSTRUCTION).strip
+  strip_preamble(response)
+end
+
+# Defensively drop any stray preamble/commentary the LLM prepends despite being told not to -
+# the recap itself always starts with the first HTML tag.
+def strip_preamble(response)
+  tag_start = response.index('<')
+  tag_start ? response[tag_start..] : response
+end
+
+# Sets both an RTF and a plain-text flavor on the clipboard in one shot, so rich-text
+# targets (email compose) get bold/italic formatting and plain-text-only targets still get
+# readable text instead of nothing. Plain `pbcopy -Prefer rtf` only sets the RTF flavor,
+# which pastes as empty in plain-text-only contexts - hence the AppleScript instead.
+def copy_as_rich_text!(html)
+  puts '📋 Converting to rich text and copying to the clipboard...' if $VERBOSE
+
+  # Without an explicit charset, textutil assumes Windows-1252 for HTML input and mangles
+  # multi-byte UTF-8 characters (em dashes, curly quotes, etc.) - force it to UTF-8.
+  html_with_charset = "<meta charset=\"utf-8\">#{html}"
+
+  rtf = run!('textutil', '-convert', 'rtf', '-format', 'html', '-stdin', '-stdout',
+             stdin_data: html_with_charset)
+  plain_text = run!('textutil', '-convert', 'txt', '-format', 'html', '-stdin', '-stdout',
+                    stdin_data: html_with_charset)
+
+  Tempfile.create(['weekly_report', '.rtf']) do |rtf_file|
+    rtf_file.write(rtf)
+    rtf_file.flush
+
+    Tempfile.create(['weekly_report', '.txt']) do |txt_file|
+      txt_file.write(plain_text)
+      txt_file.flush
+
+      set_clipboard_flavors!(rtf_file.path, txt_file.path)
+    end
+  end
+
+  puts '✅ Copied to clipboard — paste directly into your email'
+end
+
+def set_clipboard_flavors!(rtf_path, txt_path)
+  applescript = <<~APPLESCRIPT
+    set plainText to (read (POSIX file "#{txt_path}") as «class utf8»)
+    set rtfData to (read (POSIX file "#{rtf_path}") as «class RTF »)
+    set the clipboard to {«class utf8»:plainText, «class RTF »:rtfData}
+  APPLESCRIPT
+
+  run!('osascript', stdin_data: applescript)
+end
+
+def main
+  llm_command, copy_to_clipboard, passthrough_args = parse_arguments!
+  html = generate_html_recap(__dir__, llm_command, passthrough_args)
+
+  if copy_to_clipboard
+    copy_as_rich_text!(html)
+  else
+    puts html
+  end
+rescue StandardError => e
+  warn "❌ Error: #{e.message}"
+  exit 1
+end
+
+main if __FILE__ == $PROGRAM_NAME
