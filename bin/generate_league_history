@@ -1,0 +1,227 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# League History Generator for Sleeper Weekly Summary
+# - Walks the previous_league_id chain from a given league back through past seasons
+# - Reads each season's winners_bracket for the championship game (placement "p" == 1) and
+#   losers_bracket for the last-place game (same "p" == 1 convention, but the loser of that
+#   game is the one who finishes last - the winner is the one who escapes it)
+# - Generates config/league_history.yml, used to auto-detect rematch and sacko storylines
+#
+# Usage:
+#   bin/generate_league_history [LEAGUE_ID] [OPTIONS]
+#   SLEEPER_LEAGUE_ID=123456789 bin/generate_league_history
+#
+# Examples:
+#   # Using environment variable (walks back from the current season)
+#   SLEEPER_LEAGUE_ID=123456789012345678 bin/generate_league_history
+#
+#   # Using command line argument (overrides ENV)
+#   bin/generate_league_history 123456789012345678
+#   bin/generate_league_history 123456789012345678 --preserve
+#
+
+require 'yaml'
+require_relative '../lib/league_service'
+
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
+def show_help
+  warn "Usage: #{File.basename($PROGRAM_NAME)} [LEAGUE_ID] [OPTIONS]"
+  warn ''
+  warn 'Arguments:'
+  warn '  LEAGUE_ID    Sleeper league ID for the current/starting season'
+  warn '               (optional if SLEEPER_LEAGUE_ID env var is set)'
+  warn ''
+  warn 'Options:'
+  warn '  --output PATH   Output YAML to file at PATH (default: config/league_history.yml)'
+  warn '  --verbose       Enable verbose output'
+  warn '  --preserve      Keep manually-added "note" text on seasons already in the file'
+  warn '  --help, -h      Show this help message'
+  warn ''
+  warn 'Environment Variables:'
+  warn '  SLEEPER_LEAGUE_ID   League ID to use if not provided as argument'
+  warn ''
+  warn 'Notes:'
+  warn '  Only past seasons are written - the given league is treated as the current,'
+  warn '  in-progress season and is never included. Walking stops at whichever season'
+  warn "  has no previous_league_id (e.g. the league's first year on Sleeper)."
+end
+
+def parse_arguments!
+  if ARGV.include?('--help') || ARGV.include?('-h')
+    show_help
+    exit 0
+  end
+
+  if ARGV.empty? && ENV['SLEEPER_LEAGUE_ID'].nil?
+    show_help
+    exit 2
+  end
+
+  league_id = if ARGV.empty? || !ARGV[0].match?(/^\d{10,}$/)
+                ENV.fetch('SLEEPER_LEAGUE_ID', nil)
+              else
+                ARGV[0]
+              end
+
+  unless league_id
+    warn '❌ Error: No league ID provided'
+    warn 'Set SLEEPER_LEAGUE_ID environment variable or provide as first argument'
+    exit 1
+  end
+
+  output_path = File.join(__dir__, '..', 'config', 'league_history.yml')
+  verbose = false
+  preserve = false
+
+  ARGV.each_with_index do |arg, i|
+    case arg
+    when '--output', '-o'
+      output_path = ARGV[i + 1]
+    when '--verbose', '-v'
+      verbose = true
+    when '--preserve', '-p'
+      preserve = true
+    end
+  end
+
+  $VERBOSE = verbose
+
+  [league_id, output_path, preserve]
+end
+
+def past_league_ids(starting_league_id)
+  ids = []
+  next_id = SleeperAPI.league(starting_league_id)['previous_league_id']
+
+  while next_id && !next_id.to_s.strip.empty?
+    ids << next_id
+    next_id = SleeperAPI.league(next_id)['previous_league_id']
+  end
+
+  ids
+end
+
+def find_placement_game(bracket)
+  bracket.find { |game| game['p'] == 1 }
+end
+
+# Championship game: the winner ("w") is the champion, the loser ("l") is the runner-up.
+def add_champion_result!(result, service, owner_map)
+  game = find_placement_game(service.winners_bracket)
+  return unless game && game['w'] && game['l']
+
+  champion = owner_map.dig(game['w'], 'display_name')
+  runner_up = owner_map.dig(game['l'], 'display_name')
+  return unless champion && runner_up
+
+  puts "🏆 #{result['year']}: #{champion} beat #{runner_up}" if $VERBOSE
+  result['champion'] = champion
+  result['runner_up'] = runner_up
+end
+
+# Last-place ("sacko") game. Sleeper's losers_bracket records "w"/"l" inverted relative to
+# the actual weekly score (confirmed against real matchup points: the higher-scoring team
+# comes back as "l" here) - so the team flagged "w" is the one who actually finishes last,
+# and "l" is the one who escapes it. This is the opposite of the winners_bracket convention.
+def add_last_place_result!(result, service, owner_map)
+  game = find_placement_game(service.losers_bracket)
+  return unless game && game['w']
+
+  last_place = owner_map.dig(game['w'], 'display_name')
+  return unless last_place
+
+  puts "💩 #{result['year']}: #{last_place} finished last" if $VERBOSE
+  result['last_place'] = last_place
+end
+
+def season_result(league_id)
+  service = LeagueService.new(league_id)
+  season = service.league_info['season']
+  owner_map = service.roster_owner_map
+
+  result = { 'year' => season.to_i }
+  add_champion_result!(result, service, owner_map)
+  add_last_place_result!(result, service, owner_map)
+
+  if result['champion'].nil? && result['last_place'].nil?
+    puts "⏭  Skipping #{season} - no completed championship or last-place game found" if $VERBOSE
+    return nil
+  end
+
+  result
+end
+
+def load_existing_seasons(file_path)
+  return {} unless File.exist?(file_path)
+
+  data = YAML.load_file(file_path)
+  (data['seasons'] || []).each_with_object({}) { |s, h| h[s['year']] = s }
+rescue StandardError => e
+  puts "Warning: Could not load existing league history: #{e.message}" if $VERBOSE
+  {}
+end
+
+def merge_preserved_notes(seasons, existing_by_year)
+  seasons.map do |season|
+    existing = existing_by_year[season['year']]
+    existing && existing['note'] ? season.merge('note' => existing['note']) : season
+  end
+end
+
+def build_yaml_content(seasons)
+  content = []
+  content << '# League History Configuration'
+  content << '#'
+  content << '# Generated automatically from the Sleeper API by bin/generate_league_history.'
+  content << "# Generated at: #{Time.now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+  content << '#'
+  content << '# Used to automatically surface rivalry/rematch and sacko storylines when this'
+  content << "# year's matchups or standings echo a past season."
+  content << '#'
+  content << '# Format:'
+  content << '#   seasons:'
+  content << '#     - year: 2025'
+  content << '#       champion: "sleeper_username"'
+  content << '#       runner_up: "sleeper_username"'
+  content << '#       last_place: "sleeper_username"'
+  content << '#       note: "Optional extra context (preserved by --preserve)"'
+  content << ''
+
+  content << YAML.dump({ 'seasons' => seasons.sort_by { |s| -s['year'] } })
+  content.join("\n")
+end
+
+def main
+  league_id, output_path, preserve = parse_arguments!
+
+  begin
+    puts "🚀 Walking league history back from #{league_id}..." if $VERBOSE
+
+    seasons = past_league_ids(league_id).filter_map { |id| season_result(id) }
+    seasons = merge_preserved_notes(seasons, load_existing_seasons(output_path)) if preserve
+
+    File.write(output_path, build_yaml_content(seasons))
+
+    puts '✅ Successfully generated league history!'
+    puts "📁 Output file: #{output_path}"
+    puts "📝 Found #{seasons.length} past season(s) with a completed championship and/or " \
+         'last-place game'
+  rescue SleeperAPI::APIError => e
+    warn "❌ API Error: #{e.message}"
+    exit 1
+  rescue StandardError => e
+    warn "❌ Unexpected error: #{e.message}"
+    warn e.backtrace.join("\n") if $VERBOSE
+    exit 1
+  end
+end
+
+main if __FILE__ == $PROGRAM_NAME

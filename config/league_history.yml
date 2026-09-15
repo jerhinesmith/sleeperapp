@@ -1,0 +1,22 @@
+# League History Configuration
+#
+# Generated automatically from the Sleeper API by bin/generate_league_history.
+# Generated at: 2026-09-15 09:43:59 PDT
+#
+# Used to automatically surface rivalry/rematch and sacko storylines when this
+# year's matchups or standings echo a past season.
+#
+# Format:
+#   seasons:
+#     - year: 2025
+#       champion: "sleeper_username"
+#       runner_up: "sleeper_username"
+#       last_place: "sleeper_username"
+#       note: "Optional extra context (preserved by --preserve)"
+
+---
+seasons:
+- year: 2025
+  champion: sararaffel
+  runner_up: BWilson8080
+  last_place: dstrock

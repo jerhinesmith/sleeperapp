@@ -1,0 +1,24 @@
+# Manager Notes Configuration
+#
+# Standing flavor/storyline notes about individual managers that should be
+# woven into the weekly summary whenever that manager is active, instead of
+# having to re-explain the same context in every week's prompt by hand.
+#
+# Format:
+#   notes:
+#     - member: "sleeper_username"
+#       note: "Free text description of the storyline"
+#
+# Notes are matched the same way relationships.yml is: a case-insensitive
+# substring match against that week's active owner names. A member can have
+# multiple notes.
+
+notes:
+  - member: "krayla21"
+    note: "Reluctant manager - didn't actually want to play fantasy football this year. Great fodder for banter when her team wins anyway."
+
+  - member: "krayla21"
+    note: "Rookie manager - first year in the league."
+
+  - member: "septuagenarians"
+    note: "Returning manager - missed last season, but has been in the league for years on other platforms before that. This is her first season on Sleeper specifically. Not a true rookie like Kayla."

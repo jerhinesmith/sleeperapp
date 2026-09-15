@@ -106,6 +106,80 @@ class ConfigLoader # rubocop:disable Metrics/ClassLength
     relationship_desc
   end
 
+  def self.load_manager_notes
+    notes_file = File.join(CONFIG_DIR, 'manager_notes.yml')
+    return [] unless File.exist?(notes_file)
+
+    data = YAML.load_file(notes_file)
+    data['notes'] || []
+  rescue StandardError => e
+    puts "Warning: Could not load manager notes config: #{e.message}" if $VERBOSE
+    []
+  end
+
+  def self.find_manager_notes(owner_names)
+    load_manager_notes.select do |entry|
+      member = entry['member'].to_s
+      owner_names.any? { |name| name.to_s.downcase.include?(member.downcase) }
+    end
+  end
+
+  def self.load_league_history
+    history_file = File.join(CONFIG_DIR, 'league_history.yml')
+    return [] unless File.exist?(history_file)
+
+    data = YAML.load_file(history_file)
+    data['seasons'] || []
+  rescue StandardError => e
+    puts "Warning: Could not load league history config: #{e.message}" if $VERBOSE
+    []
+  end
+
+  def self.find_rematches(matchups)
+    seasons = load_league_history
+    return [] if seasons.empty?
+
+    matchups.each_with_object([]) do |matchup, rematches|
+      owners = (matchup['teams'] || []).map { |t| t['owner'] }.compact
+      next unless owners.size == 2
+
+      rematches.concat(rematches_for_matchup(owners, seasons))
+    end
+  end
+
+  def self.rematches_for_matchup(owners, seasons)
+    seasons.filter_map do |season|
+      pair = [season['champion'], season['runner_up']].compact
+      next unless pair.size == 2
+      next unless pair.all? { |p| owners.any? { |o| o.to_s.downcase == p.to_s.downcase } }
+
+      describe_rematch(owners, season)
+    end
+  end
+
+  def self.describe_rematch(owners, season)
+    desc = "#{owners.join(' vs. ')} is a rematch of the #{season['year']} championship " \
+           "(won by #{season['champion']})"
+    desc += " - #{season['note']}" if season['note']
+    desc
+  end
+
+  def self.find_returning_sackos(current_last_place_watch)
+    seasons = load_league_history
+    return [] if seasons.empty?
+
+    current_owners = (current_last_place_watch || []).map { |t| t['owner'] }.compact
+
+    seasons.filter_map do |season|
+      last_place = season['last_place']
+      next unless last_place
+      next unless current_owners.any? { |o| o.to_s.downcase == last_place.to_s.downcase }
+
+      "#{last_place} finished last place in #{season['year']} and is currently in the " \
+        'running for it again this week'
+    end
+  end
+
   def self.select_madison_beer_quote(context_themes = [])
     quotes = load_madison_beer_quotes
     return fallback_quote if quotes.empty?
