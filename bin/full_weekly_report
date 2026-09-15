@@ -35,6 +35,13 @@
 require 'open3'
 require 'tempfile'
 
+# Load environment variables if available
+begin
+  require 'dotenv/load'
+rescue LoadError
+  # dotenv not available, continue without it
+end
+
 DEFAULT_LLM_COMMAND = 'claude -p --permission-prompts none'
 
 HTML_FORMAT_INSTRUCTION = <<~INSTRUCTION
