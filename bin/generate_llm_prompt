@@ -85,6 +85,10 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
                              ''
                            end
 
+    manager_notes_context = build_manager_notes_context(owner_names)
+    rematch_context = build_rematch_context
+    sacko_context = build_sacko_context
+
     # Add team-to-owner mappings for clarity
     team_mappings_context = build_team_mappings_context
 
@@ -95,8 +99,30 @@ class LLMPromptGenerator # rubocop:disable Metrics/ClassLength
       **Week:** #{week}
       **Generated:** #{@json_data['generated_at']}
 
-      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.#{relationship_context}#{team_mappings_context}
+      This is a family/friend league where good-natured ribbing and playful trash talk are encouraged. Keep the tone light, fun, and engaging while highlighting the key storylines from this week.#{relationship_context}#{manager_notes_context}#{rematch_context}#{sacko_context}#{team_mappings_context}
     CONTEXT
+  end
+
+  def build_manager_notes_context(owner_names)
+    notes = ConfigLoader.find_manager_notes(owner_names)
+    return '' if notes.empty?
+
+    lines = notes.map { |entry| "- #{entry['member']}: #{entry['note']}" }
+    "\n\n**Manager Notes:**\n#{lines.join("\n")}"
+  end
+
+  def build_rematch_context
+    rematches = ConfigLoader.find_rematches(@json_data['matchups'] || [])
+    return '' if rematches.empty?
+
+    "\n\n**Notable Rematches:**\n#{rematches.map { |r| "- #{r}" }.join("\n")}"
+  end
+
+  def build_sacko_context
+    sackos = ConfigLoader.find_returning_sackos(@json_data['last_place_watch'])
+    return '' if sackos.empty?
+
+    "\n\n**Last Place Watch:**\n#{sackos.map { |s| "- #{s}" }.join("\n")}"
   end
 
   def build_matchup_instructions

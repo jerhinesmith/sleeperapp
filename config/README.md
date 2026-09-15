@@ -123,6 +123,71 @@ The team mapping information automatically appears in the LLM prompt's League Co
 Do not confuse team names with owner names. Use the correct pronouns for each person.
 ```
 
+## manager_notes.yml
+
+Standing flavor/storyline notes about individual managers (e.g. "rookie this year", "didn't
+want to play") that get woven into the LLM prompt automatically whenever that manager is
+active, instead of having to re-explain the same context by hand every week.
+
+### Format
+
+```yaml
+notes:
+  - member: "sleeper_username"    # Matched the same way relationships.yml is (case-insensitive substring)
+    note: "Free text description of the storyline"
+```
+
+A member can have multiple notes. They surface in the prompt's League Context as:
+
+```
+**Manager Notes:**
+- krayla21: Rookie manager - first year in the league.
+```
+
+## league_history.yml
+
+Past-season results used to automatically flag rivalry/rematch storylines when this year's
+matchups pit the same two managers against each other again (e.g. a championship rematch).
+
+### Format
+
+```yaml
+seasons:
+  - year: 2025
+    champion: "sleeper_username"
+    runner_up: "sleeper_username"
+    note: "Optional extra context"
+```
+
+When a current-week matchup exactly matches a past season's champion/runner-up pair, it
+surfaces in the prompt as:
+
+```
+**Notable Rematches:**
+- sararaffel vs. BWilson8080 is a rematch of the 2025 championship (won by sararaffel)
+```
+
+### Automatic Generation
+
+Rather than filling this in by hand, generate it from the Sleeper API. It walks the
+`previous_league_id` chain back from the given league and reads each past season's
+`winners_bracket` for the championship game (`"p": 1`):
+
+```bash
+# Using environment variable
+SLEEPER_LEAGUE_ID=123456789012345678 bin/generate_league_history
+
+# Using command line argument (overrides ENV)
+bin/generate_league_history 123456789012345678
+
+# Preserve any manually-added "note" text on seasons already in the file
+bin/generate_league_history --preserve
+```
+
+The given league ID is always treated as the current, in-progress season and is never
+included in the output. Walking stops wherever a season has no `previous_league_id` (e.g.
+the league's first year on Sleeper, even if it existed on another platform before that).
+
 ## madison_beer_quotes.yml
 
 Contains a curated collection of Madison Beer-inspired quotes that relate to fantasy football situations.
