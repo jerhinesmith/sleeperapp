@@ -21,6 +21,25 @@ Creates structured prompts for LLMs to generate entertaining weekly summaries wi
 - **"Danielle Last Place Watch"** - Personalized tracking section
 - **Transaction impact analysis** - Did waiver moves pay off?
 - **Bench regret analysis** - Should've started players
+- **Manager notes and league history** - see `config/README.md` for `manager_notes.yml`
+  and `league_history.yml`, which surface rookie/returning-manager context, championship
+  rematches, and repeat-sacko storylines automatically
+
+### 3. `bin/full_weekly_report` - One-Command Report
+Runs the full pipeline end to end: fetches the week's data, builds the LLM prompt, pipes it
+to a headless LLM CLI (`claude -p` by default) to generate the actual recap, and copies the
+result straight to your clipboard as rich text (bold/italics intact) ready to paste into an
+email. macOS only.
+
+```bash
+SLEEPER_LEAGUE_ID=YOUR_LEAGUE_ID bin/full_weekly_report
+
+# Print the HTML instead of copying it
+bin/full_weekly_report --no-copy
+
+# Use a different headless LLM CLI
+bin/full_weekly_report --llm "codex exec"
+```
 
 ## Quick Start
 
@@ -31,6 +50,9 @@ SLEEPER_LEAGUE_ID=YOUR_LEAGUE_ID bin/weekly_summary
 
 # Generate data + LLM prompt in one command
 SLEEPER_LEAGUE_ID=YOUR_LEAGUE_ID bin/weekly_summary | bin/generate_llm_prompt
+
+# Or skip straight to a clipboard-ready recap
+SLEEPER_LEAGUE_ID=YOUR_LEAGUE_ID bin/full_weekly_report
 
 # Using .env file (even simpler)
 echo 'SLEEPER_LEAGUE_ID=YOUR_LEAGUE_ID' > .env
