@@ -44,17 +44,25 @@ end
 
 DEFAULT_LLM_COMMAND = 'claude -p --permission-prompts none'
 
-HTML_FORMAT_INSTRUCTION = <<~INSTRUCTION
+SUBJECT_PREFIX = 'SUBJECT:'
+
+HTML_FORMAT_INSTRUCTION = <<~INSTRUCTION.freeze
 
   ---
 
-  IMPORTANT - OUTPUT FORMAT: Respond with the recap as clean, semantic HTML only.
+  IMPORTANT - OUTPUT FORMAT: First, output one line with a short, punchy email subject
+  line for this week's recap (mention the week number and the biggest storyline),
+  formatted exactly as:
+  #{SUBJECT_PREFIX} <subject text>
+
+  Then leave a blank line, followed by the recap as clean, semantic HTML only.
   Use just <h2> for section headings, <p> for paragraphs, <strong> for bold,
   <em> for italics, and <blockquote> for the Madison Beer quote. Do not include
   a <!DOCTYPE>, <html>, <head>, or <body> wrapper, code fences, or any Markdown
-  syntax (no "**", "##", etc.). Do not include any preamble, meta-commentary, or
-  explanation before or after the HTML - your entire response must be nothing
-  but the HTML fragment, starting with the first <h2> tag.
+  syntax (no "**", "##", etc.). Do not repeat the subject line inside the HTML.
+  Do not include any other preamble, meta-commentary, or explanation - your entire
+  response must be nothing but the subject line followed by the HTML fragment,
+  which itself must start with the first <h2> tag.
 INSTRUCTION
 
 def show_help
@@ -123,60 +131,81 @@ def generate_html_recap(bin_dir, llm_command, passthrough_args)
 
   puts "🤖 Generating recap via `#{llm_command}`..." if $VERBOSE
   response = run!(*llm_command.split, stdin_data: prompt + HTML_FORMAT_INSTRUCTION).strip
-  strip_preamble(response)
+  extract_subject_and_html(response)
 end
 
-# Defensively drop any stray preamble/commentary the LLM prepends despite being told not to -
-# the recap itself always starts with the first HTML tag.
-def strip_preamble(response)
+# Splits the LLM response into its suggested subject line (if present) and the HTML recap,
+# defensively dropping any stray preamble/commentary the LLM prepends despite being told not
+# to - the recap itself always starts with the first HTML tag.
+def extract_subject_and_html(response)
+  subject = nil
+  if response.start_with?(SUBJECT_PREFIX)
+    subject_line, _, response = response.partition("\n")
+    subject = subject_line.delete_prefix(SUBJECT_PREFIX).strip
+  end
+
   tag_start = response.index('<')
-  tag_start ? response[tag_start..] : response
+  html = tag_start ? response[tag_start..] : response
+  [subject, html]
 end
 
-# Sets both an RTF and a plain-text flavor on the clipboard in one shot, so rich-text
-# targets (email compose) get bold/italic formatting and plain-text-only targets still get
-# readable text instead of nothing. Plain `pbcopy -Prefer rtf` only sets the RTF flavor,
-# which pastes as empty in plain-text-only contexts - hence the AppleScript instead.
+# Sets both an HTML and a plain-text flavor on the clipboard in one shot, so rich-text
+# targets (email compose) get bold/italic/heading formatting and plain-text-only targets
+# still get readable text instead of nothing.
 def copy_as_rich_text!(html)
-  puts '📋 Converting to rich text and copying to the clipboard...' if $VERBOSE
+  puts '📋 Copying to the clipboard...' if $VERBOSE
 
   # Without an explicit charset, textutil assumes Windows-1252 for HTML input and mangles
   # multi-byte UTF-8 characters (em dashes, curly quotes, etc.) - force it to UTF-8.
   html_with_charset = "<meta charset=\"utf-8\">#{html}"
-
-  rtf = run!('textutil', '-convert', 'rtf', '-format', 'html', '-stdin', '-stdout',
-             stdin_data: html_with_charset)
   plain_text = run!('textutil', '-convert', 'txt', '-format', 'html', '-stdin', '-stdout',
                     stdin_data: html_with_charset)
 
-  Tempfile.create(['weekly_report', '.rtf']) do |rtf_file|
-    rtf_file.write(rtf)
-    rtf_file.flush
+  Tempfile.create(['weekly_report', '.html']) do |html_file|
+    html_file.write(html)
+    html_file.flush
 
     Tempfile.create(['weekly_report', '.txt']) do |txt_file|
       txt_file.write(plain_text)
       txt_file.flush
 
-      set_clipboard_flavors!(rtf_file.path, txt_file.path)
+      set_clipboard_flavors!(html_file.path, txt_file.path)
     end
   end
 
   puts '✅ Copied to clipboard — paste directly into your email'
 end
 
-def set_clipboard_flavors!(rtf_path, txt_path)
-  applescript = <<~APPLESCRIPT
-    set plainText to (read (POSIX file "#{txt_path}") as «class utf8»)
-    set rtfData to (read (POSIX file "#{rtf_path}") as «class RTF »)
-    set the clipboard to {«class utf8»:plainText, «class RTF »:rtfData}
-  APPLESCRIPT
+# Writes the HTML fragment straight to the "public.html" pasteboard flavor instead of
+# converting it to RTF first. RTF requires every run of text to reference a concrete font
+# from its font table, so a textutil HTML->RTF conversion always bakes in a specific
+# typeface (Times, absent any font-family in the source) - that's what pasted as an ugly
+# serif font in Gmail. Setting public.html directly carries no font at all, so pasting into
+# Gmail's compose window inherits its own default font instead of an imported one, while
+# still preserving <h2>/<strong>/<em>/<blockquote> structure.
+def set_clipboard_flavors!(html_path, txt_path)
+  jxa = <<~JXA
+    ObjC.import('AppKit');
 
-  run!('osascript', stdin_data: applescript)
+    var htmlStr = $.NSString.stringWithContentsOfFileEncodingError(
+      $(#{html_path.inspect}), $.NSUTF8StringEncoding, null);
+    var txtStr = $.NSString.stringWithContentsOfFileEncodingError(
+      $(#{txt_path.inspect}), $.NSUTF8StringEncoding, null);
+
+    var pb = $.NSPasteboard.generalPasteboard;
+    pb.clearContents;
+    pb.setStringForType(htmlStr, 'public.html');
+    pb.setStringForType(txtStr, 'public.utf8-plain-text');
+  JXA
+
+  run!('osascript', '-l', 'JavaScript', stdin_data: jxa)
 end
 
 def main
   llm_command, copy_to_clipboard, passthrough_args = parse_arguments!
-  html = generate_html_recap(__dir__, llm_command, passthrough_args)
+  subject, html = generate_html_recap(__dir__, llm_command, passthrough_args)
+
+  puts "📧 Suggested subject: #{subject}" if subject
 
   if copy_to_clipboard
     copy_as_rich_text!(html)
