@@ -74,6 +74,7 @@ def show_help
   warn 'Options:'
   warn '  --llm CMD    Headless LLM command to pipe the prompt to'
   warn "               (default: #{DEFAULT_LLM_COMMAND.inspect})"
+  warn '  --note TEXT  Add an ad-hoc note for this generation only (repeatable)'
   warn '  --no-copy    Print the generated HTML to stdout instead of copying it'
   warn '  --verbose    Enable verbose status output'
   warn '  --help       Show this help message'
@@ -90,6 +91,7 @@ def parse_arguments!
   llm_command = DEFAULT_LLM_COMMAND
   copy_to_clipboard = true
   verbose = false
+  notes = []
   passthrough_args = []
 
   i = 0
@@ -100,6 +102,9 @@ def parse_arguments!
       llm_command = ARGV[i]
     when '--no-copy'
       copy_to_clipboard = false
+    when '--note'
+      i += 1
+      notes << ARGV[i]
     when '--verbose', '-v'
       verbose = true
     when '--help', '-h'
@@ -112,7 +117,7 @@ def parse_arguments!
   end
 
   $VERBOSE = verbose
-  [llm_command, copy_to_clipboard, passthrough_args]
+  [llm_command, copy_to_clipboard, notes, passthrough_args]
 end
 
 def run!(*cmd, stdin_data: '')
@@ -122,12 +127,13 @@ def run!(*cmd, stdin_data: '')
   stdout
 end
 
-def generate_html_recap(bin_dir, llm_command, passthrough_args)
+def generate_html_recap(bin_dir, llm_command, notes, passthrough_args)
   puts '📡 Fetching week data...' if $VERBOSE
   json = run!(File.join(bin_dir, 'weekly_summary'), *passthrough_args)
 
   puts '📝 Building LLM prompt...' if $VERBOSE
-  prompt = run!(File.join(bin_dir, 'generate_llm_prompt'), stdin_data: json)
+  note_args = notes.flat_map { |note| ['--note', note] }
+  prompt = run!(File.join(bin_dir, 'generate_llm_prompt'), *note_args, stdin_data: json)
 
   puts "🤖 Generating recap via `#{llm_command}`..." if $VERBOSE
   response = run!(*llm_command.split, stdin_data: prompt + HTML_FORMAT_INSTRUCTION).strip
@@ -202,8 +208,8 @@ def set_clipboard_flavors!(html_path, txt_path)
 end
 
 def main
-  llm_command, copy_to_clipboard, passthrough_args = parse_arguments!
-  subject, html = generate_html_recap(__dir__, llm_command, passthrough_args)
+  llm_command, copy_to_clipboard, notes, passthrough_args = parse_arguments!
+  subject, html = generate_html_recap(__dir__, llm_command, notes, passthrough_args)
 
   puts "📧 Suggested subject: #{subject}" if subject
 

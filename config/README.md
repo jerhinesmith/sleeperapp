@@ -123,6 +123,26 @@ The team mapping information automatically appears in the LLM prompt's League Co
 Do not confuse team names with owner names. Use the correct pronouns for each person.
 ```
 
+## One-off weekly notes (`--note`)
+
+For context that only matters for a single generation - "Justin and Kayla are in Spain right
+now", "don't mention Kayla being new this week", a timely callout you want emphasized - pass
+`--note "TEXT"` (repeatable) instead of editing a config file:
+
+```bash
+bin/full_weekly_report --note "Justin and Kayla are in Spain right now" \
+  --note "Don't say anything about Kayla being new"
+```
+
+Each note is plain free text handed straight to the LLM as part of the League Context, under
+a **This Week's Notes** heading - there's no special syntax for "suppress" vs. "highlight",
+the LLM just follows it like a note from the commissioner. Nothing is persisted; if the same
+note should apply again next week, pass it again. For storylines that should stick around
+permanently, add them to `manager_notes.yml` below instead.
+
+`bin/generate_llm_prompt` also accepts the same flag directly if you're running the pipeline
+by hand rather than through `bin/full_weekly_report`.
+
 ## manager_notes.yml
 
 Standing flavor/storyline notes about individual managers (e.g. "rookie this year", "didn't
