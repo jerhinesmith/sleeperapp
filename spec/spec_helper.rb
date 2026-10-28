@@ -7,6 +7,7 @@ require_relative '../lib/league_service'
 require_relative '../lib/matchup_analyzer'
 require_relative '../lib/transaction_analyzer'
 require_relative '../lib/weekly_summary_generator'
+require_relative '../lib/llm_prompt_generator'
 
 RSpec.configure do |config|
   # rspec-expectations config goes here. You can use an alternate

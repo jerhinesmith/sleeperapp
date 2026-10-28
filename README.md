@@ -24,6 +24,10 @@ Creates structured prompts for LLMs to generate entertaining weekly summaries wi
 - **Manager notes and league history** - see `config/README.md` for `manager_notes.yml`
   and `league_history.yml`, which surface rookie/returning-manager context, championship
   rematches, and repeat-sacko storylines automatically
+- **One-off weekly notes** - pass `--note "TEXT"` (repeatable) for context that only matters
+  for a single generation (a suppression, a callout, a travel note); see `config/README.md`
+- **Unbeaten & Winless Watch** - automatically calls out the league's last remaining unbeaten
+  team(s) and winless team(s) each week, computed straight from standings
 
 ### 3. `bin/full_weekly_report` - One-Command Report
 Runs the full pipeline end to end: fetches the week's data, builds the LLM prompt, pipes it
@@ -106,7 +110,8 @@ The refactored codebase uses clean, modular classes:
 - **`MatchupAnalyzer`** - Analyzes games, determines winners/margins
 - **`TransactionAnalyzer`** - Processes waiver wire activity
 - **`WeeklySummaryGenerator`** - Coordinates all services
-- **`LLMPromptGenerator`** - Creates structured prompts for LLMs
+- **`LLMPromptGenerator`** - Creates structured prompts for LLMs, including one-off `--note`
+  text and the automatic Unbeaten & Winless Watch
 
 ## Sample Output Structure
 
